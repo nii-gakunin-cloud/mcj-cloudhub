@@ -1,0 +1,107 @@
+version: '3.8'
+services:
+  hub:
+    image: jh-simple:1.0
+    hostname: jupyterhub_simple
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - {{jupyterhub_dir}}/jupyterhub_config.py:/etc/jupyterhub/jupyterhub_config.py
+      - {{jupyterhub_dir}}/jupyterhub_config.ini:/etc/jupyterhub/jupyterhub_config.ini
+      - {{jupyterhub_dir}}/packages/ltiauthenticator:/usr/local/lib/python3.8/dist-packages/ltiauthenticator
+      - {{jupyterhub_dir}}/packages/dockerspawner:/usr/local/lib/python3.8/dist-packages/dockerspawner
+      - /jupytershare:/jupytershare
+      - /home:/home
+    networks:
+      - {{swarm_network}}
+    ports:
+      - 80:8000
+    environment:
+      DOCKER_NETWORK_NAME: {{swarm_network}}
+      CONFIGPROXY_AUTH_TOKEN: ABCDEFG
+    command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+  proxy:
+    image: jupyterhub/configurable-http-proxy
+    networks:
+      - {{swarm_network}}
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      CONFIGPROXY_AUTH_TOKEN: ABCDEFG
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  proxy-1:
+    image: nginx:1.24.0
+    ports:
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - {{base_dir}}/jupyterhub/nginx/default.conf:/etc/nginx/conf.d/default.conf
+      - {{certs_dir}}/fullchain.pem:/etc/nginx/certs/fullchain.pem
+      - {{certs_dir}}/privkey.pem:/etc/nginx/certs/privkey.pem
+    networks:
+      - {{swarm_network}}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  openldap:
+    image: bitnami/openldap:2.5.14
+    ports:
+      - '1389:1389'
+      - '1636:1636'
+    environment:
+      - LDAP_SKIP_DEFAULT_TREE=yes
+      #- LDAP_ALLOW_ANON_BINDING=no
+      - LDAP_ROOT=dc=jupyterhub,dc=server,dc=sample,dc=jp
+      - LDAP_ADMIN_USERNAME=Manager
+      - LDAP_ADMIN_PASSWORD=PassWordDesu
+    networks:
+      - {{swarm_network}}
+    volumes:
+      - {{base_dir}}/jupyterhub/ldap/ldifs:/ldifs
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  mariadb:
+    image: mariadb:10.5.15
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: {{jh_db_password}}
+      MYSQL_DATABASE: {{jh_db_name}}
+      MYSQL_USER: {{jh_db_user}}
+      MYSQL_PASSWORD: {{jh_db_password}}
+    networks:
+      - {{swarm_network}}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+networks:
+  {{swarm_network}}:
+    driver: overlay
+    name: {{swarm_network}}
+    ipam:
+      config:
+        - subnet: {{jupyterhub_backend}}

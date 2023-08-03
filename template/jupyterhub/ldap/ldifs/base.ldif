@@ -1,0 +1,9 @@
+dn: dc=jupyterhub,dc=server,dc=sample,dc=jp
+objectclass: dcObject
+objectclass: organization
+o: sample
+dc: jupyterhub
+
+dn: ou=People,dc=jupyterhub,dc=server,dc=sample,dc=jp
+objectClass: organizationalUnit
+ou: People
