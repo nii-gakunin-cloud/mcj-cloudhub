@@ -1,19 +1,2 @@
-- name: pull image
-  command: "docker pull {{jupyterhub_image}}"
-- file:
-    path: "{{jupyterhub_dir}}"
-    state: directory
-- name: deploy logo.png
-  get_url:
-    url: "{{logo_url}}"
-    dest: "{{jupyterhub_dir}}/logo.png"
-  when: logo_file is not defined
-- name: deploy logo.png
-  copy:
-    src: "{{logo_file}}"
-    dest: "{{jupyterhub_dir}}/logo.png"
-  when: logo_file is defined
-- name: deploy resource.yaml
-  copy:
-    src: "{{rsc_yml}}"
-    dest: "{{jupyterhub_dir}}/resource.yaml"
+- name: build image
+  command: "docker build {{jupyterhub_image_dir}} -t jh-simple:1.0"

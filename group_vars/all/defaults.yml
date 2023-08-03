@@ -1,6 +1,6 @@
 base_dir: "/srv/jupyterhub"
 certs_dir: "{{base_dir}}/certs"
 jupyterhub_dir: "{{base_dir}}/jupyterhub/jupyterhub"
-notebook_dir: "{{base_dir}}/jupyterhub/notebook"
+notebook_dir: "{{base_dir}}/jupyterhub/notebook/notebook"
 jupyterhub_image_dir: "{{jupyterhub_dir}}/images"
 notebook_image_dir: "{{notebook_dir}}/images"
