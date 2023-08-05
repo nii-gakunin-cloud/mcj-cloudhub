@@ -1,5 +1,6 @@
 import sys,os
 from jupyter_client.localinterfaces import public_ips
+import json
 
 # The proxy is in another container
 c.ConfigurableHTTPProxy.should_start = False
@@ -51,7 +52,8 @@ import os
 import errno
 
 config_ini = configparser.ConfigParser()
-config_ini_path = 'jupyterhub_config.ini'
+# config_ini_path = 'jupyterhub_config.ini'
+config_ini_path = os.path.dirname(__file__) + '/' + 'jupyterhub_config.ini'
 
 # Issue an error code where a config-file does not exist
 if not os.path.exists(config_ini_path):
@@ -94,6 +96,14 @@ nbgrader_template_teachers = config_ini.get('SHARED_DIRECTORY', 'Nbgrader_templa
 subject_shared_root = config_ini.get('SHARED_DIRECTORY', 'Subject_shared_root')
 
 email_domain = config_ini.get('USER_DATA', 'Email_domain')
+mem_guarantee = config_ini.get('RESOURCE', 'Mem_guarantee')
+teacher_mem_limit = config_ini.get('RESOURCE', 'Teacher_mem_limit')
+student_mem_limit = config_ini.get('RESOURCE', 'Student_mem_limit')
+cpu_guarantee = float(config_ini.get('RESOURCE', 'Cpu_guarantee'))
+cpu_limit = float(config_ini.get('RESOURCE', 'Cpu_limit'))
+
+notebook_image = config_ini.get('DOCKER', 'Notebook_image')
+swarm_network = config_ini.get('DOCKER', 'Swarm_network')
 
 if c.JupyterHub.log_level < 30:
     sys.stderr.write(lti_consumer_key + "\n")
@@ -137,11 +147,12 @@ c.LTI11Authenticator.create_system_users = False
 # Allow login to certaion users.
 # c.Authenticator.allowed_users = set()
 
-c.Authenticator.admin_users = set()
-adminuserlist = jupyterhub_admin_users.split(',')
-for adminuser in adminuserlist:
-    c.Authenticator.admin_users.add(adminuser)
+# c.Authenticator.admin_users = set()
+# adminuserlist = jupyterhub_admin_users.split(',')
+# for adminuser in adminuserlist:
+#     c.Authenticator.admin_users.add(adminuser)
 
+c.Authenticator.admin_users = json.loads(jupyterhub_admin_users.replace("'", '"'))
 if c.JupyterHub.log_level < 30:
     sys.stderr.write("adminusers = " + str(list(c.Authenticator.admin_users)) + "\n")
 
@@ -172,14 +183,14 @@ c.UniversitySwarmSpawner.host_homedir_format_string = home_directory_root + '/{u
 
 # Image of Noetbook
 #c.UniversitySpawner.image = 'jupyter_yamaguchi:1.5'
-c.UniversitySwarmSpawner.image = 'swarm_yamaguchi:1.7'
+c.UniversitySwarmSpawner.image = notebook_image
 #c.UniversitySwarmSpawner.image = 'jupyterhub/singleuser:1.4'
 
 # this is the network name for jupyterhub in docker-compose.yml
 # with a leading 'swarm_' that docker-compose adds
 c.UniversitySwarmSpawner.network_name = 'swarm_jupyterhub-net'
 c.UniversitySwarmSpawner.extra_host_config = { 'network_mode': "swarm_jupyterhub-net" }
-#c.UniversitySwarmSpawner.extra_placement_spec = { 'constraints': ['node.role == worker'] } 
+c.UniversitySwarmSpawner.extra_placement_spec = { 'constraints': ['node.role == worker'] } 
 
 c.UniversitySwarmSpawner.debug = True
 
@@ -220,13 +231,13 @@ c.UniversitySwarmSpawner.args = [ '--allow-root' ]
 #c.UniversitySwarmSpawner.mem_limit = '512M'
 
 # Resource allocation restriction per user (for production server).
-c.UniversitySwarmSpawner.cpu_guarantee = 0.2
-c.UniversitySwarmSpawner.cpu_limit = 0.5
+c.UniversitySwarmSpawner.cpu_guarantee = cpu_guarantee
+c.UniversitySwarmSpawner.cpu_limit = cpu_limit
 
-teacher_mem_limit = '1024M'
-student_mem_limit = '512M'
+# teacher_mem_limit = '1024M'
+# student_mem_limit = '512M'
 
-c.UniversitySwarmSpawner.mem_guarantee = '256M'
+c.UniversitySwarmSpawner.mem_guarantee = mem_guarantee
 c.UniversitySwarmSpawner.mem_limit = student_mem_limit
 
 # Set other services.
