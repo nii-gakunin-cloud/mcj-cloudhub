@@ -67,6 +67,7 @@ lti_secret = config_ini.get('LTI', 'Lti_secret')
 jupyterhub_admin_users = config_ini.get('JUPYTERHUB', 'Admin_users')
 jupyterhub_groupid_teachers = config_ini.get('JUPYTERHUB', 'Groupid_teachers')
 jupyterhub_groupid_students = config_ini.get('JUPYTERHUB', 'Groupid_students')
+check_univ_role = bool(config_ini.get('JUPYTERHUB', 'Check_univ_role'))
 
 global_ldap_server = config_ini.get('GLOBAL_LDAP', 'Ldap_server')
 global_ldap_password = config_ini.get('GLOBAL_LDAP', 'Ldap_password')
@@ -940,124 +941,102 @@ def create_home_hook(spawner, auth_state):
     if auth_state:
         moodle_username = auth_state['ext_user_username']
         homePath = home_directory_root + '/' + moodle_username
-        univserver = Server(global_ldap_server, get_info=ALL)
-        if len(global_ldap_password) >= 5:
-            univconn = Connection(univserver, password=global_ldap_password)
+                
+        univ_role = get_user_role(auth_state)
+        uidNumber = -1
+
+        if check_univ_role:
+            try:
+                sys.path.append(os.path.dirname(__file__))
+                from jupyterhub_utils import get_univercity_role
+                univercity_role = get_univercity_role(moodle_username)
+
+                uidNumber = univercity_role.get('uidNumber', uidNumber)
+                univ_role = univercity_role.get('role', univ_role)
+            except Exception as e:
+                sys.stderr.write(f"{e}\n")
+                sys.stderr.write("cannot get univercity role\n")
+                return
+        
         else:
-            univconn = Connection(univserver)
-        conn_result = univconn.bind()
-        # if connection to university ldap server failed.
-        if not conn_result:
-            sys.stderr.write("Cannot connect to ldap server in yuniversity.\n")
-            return
-        # if connection to university ldap server succeeded.
+            try:
+                rootobj = pwd.getpwnam("root")
+            except KeyError:
+                sys.stderr.write("Error: Could not find root in passwd.\n")
+
+            uidNumber = rootobj[2]
+        
+        if univ_role == 'Instructor':
+            if c.JupyterHub.log_level < 30:
+                sys.stderr.write("user = teachers.\n")
+            gidNumber = int(jupyterhub_groupid_teachers)
+            loginShell = '/bin/bash'
         else:
             if c.JupyterHub.log_level < 30:
-                sys.stderr.write("Connect to ldap server in yuniversity.\n")
-            search_result = univconn.search('uid=' + moodle_username + ',' + global_ldap_base_dn, '(objectclass=*)', attributes=['uidNumber','gidNumber','homeDirectory'])
-            # when user is not a staff/student in university.
-            if not search_result:
-                sys.stderr.write("Error: User [" + moodle_username + "] does not exist in university ldap.\n")
-                return
-            # when user is a staff/student in university.
+                sys.stderr.write("user = students.\n")
+            gidNumber = int(jupyterhub_groupid_students)
+            loginShell = '/sbin/nologin'
+                
+        localserver = Server(c.UniversitySwarmSpawner.ldap_server, get_info=ALL)
+        localconn = Connection(localserver, c.UniversitySwarmSpawner.ldap_manager_dn, password=c.UniversitySwarmSpawner.ldap_password, read_only=False)
+        conn_result = localconn.bind()
+        # if connection to local ldap server succeeded.
+        if not conn_result:
+            sys.stderr.write("Error: Cannot connect to local ldap server.\n")
+            return
+        else:
+            if c.JupyterHub.log_level < 30:
+                sys.stderr.write("Connect to local ldap server.\n")
+            search_result = localconn.search('uid=' + moodle_username + ',' + c.UniversitySwarmSpawner.ldap_base_dn, '(objectClass=*)')
+            add_home_flag = False
+            # The user is already registered in local ldap server.
+            if search_result:
+                if c.JupyterHub.log_level < 30:
+                    sys.stderr.write("User (" +  moodle_username + ") already exists in local ldap.\n")
+                add_home_flag = True
             else:
-                # get properies for user.
-                uidNumber = univconn.entries[0]['uidNumber'].value
-                gidNumber = univconn.entries[0]['gidNumber'].value
-                homeDirectory = univconn.entries[0]['homeDirectory'].value
                 if c.JupyterHub.log_level < 30:
-                    sys.stderr.write("uidNumber = " + str(uidNumber) + "\n")
-                    sys.stderr.write("gidNumber = " + str(gidNumber) + "\n")
-                    sys.stderr.write("homeDirectory = " + homeDirectory + "\n")
-                # set group name and shell.
-
-                if c.JupyterHub.log_level < 30:
-                    if gidNumber == uidNumber:
-                        sys.stderr.write("uidNumber == gidNumber.\n")
-                    if homeDirectory.startswith('/st'):
-                        sys.stderr.write("home directory is students.\n")
-                    else:
-                        sys.stderr.write("home directory is teachers.\n")
-
-                if gidNumber == uidNumber and not homeDirectory.startswith('/st'):
+                    sys.stderr.write("User (" +  moodle_username + ") does not exists.\n")
+                email = moodle_username + "@" + email_domain
+                randomPass = pass_gen(12)
+                add_result = localconn.add('uid=' + moodle_username + ',' + c.UniversitySwarmSpawner.ldap_base_dn, ['posixAccount','inetOrgPerson'], {'uid':moodle_username,'cn':moodle_username,'sn':moodle_username,'uidNumber':uidNumber,'gidNumber':gidNumber,'homeDirectory':homePath,'loginShell':loginShell,'userPassword':randomPass,'mail': email})
+                if add_result:
+                    add_home_flag = True
                     if c.JupyterHub.log_level < 30:
-                        sys.stderr.write("user = teachers.\n")
-                    gidNumber = int(jupyterhub_groupid_teachers)
-                    loginShell = '/bin/bash'
+                        sys.stderr.write("User (" + moodle_username + ") has been registered to ldap server.\n")
                 else:
-                    if c.JupyterHub.log_level < 30:
-                        sys.stderr.write("user = students.\n")
-                    gidNumber = int(jupyterhub_groupid_students)
-                    loginShell = '/sbin/nologin'
-                univconn.unbind()
-
-                # If the user does not belong to our university currently.
-                if not uidNumber:
-                    if c.JupyterHub.log_level < 30:
-                        sys.stderr.write("Error: User [" + moodle_username +"] does not belong to our university currently.\n")
+                    sys.stderr.write("Error: Could not register new user to ldap server.\n")
                     return
-                # If the user currently belongs our university.
-                else:
-                    localserver = Server(c.UniversitySwarmSpawner.ldap_server, get_info=ALL)
-                    localconn = Connection(localserver, c.UniversitySwarmSpawner.ldap_manager_dn, password=c.UniversitySwarmSpawner.ldap_password, read_only=False)
-                    conn_result = localconn.bind()
-                    # if connection to local ldap server succeeded.
-                    if not conn_result:
-                        sys.stderr.write("Error: Cannot connect to local ldap server.\n")
-                        return
-                    else:
-                        if c.JupyterHub.log_level < 30:
-                            sys.stderr.write("Connect to local ldap server.\n")
-                        search_result = localconn.search('uid=' + moodle_username + ',' + c.UniversitySwarmSpawner.ldap_base_dn, '(objectClass=*)')
-                        add_home_flag = False
-                        # The user is already registered in local ldap server.
-                        if search_result:
-                            if c.JupyterHub.log_level < 30:
-                                sys.stderr.write("User (" +  moodle_username + ") already exists in local ldap.\n")
-                            add_home_flag = True
-                        else:
-                            if c.JupyterHub.log_level < 30:
-                                sys.stderr.write("User (" +  moodle_username + ") does not exists.\n")
-                            email = moodle_username + "@" + email_domain
-                            randomPass = pass_gen(12)
-                            add_result = localconn.add('uid=' + moodle_username + ',' + c.UniversitySwarmSpawner.ldap_base_dn, ['posixAccount','inetOrgPerson'], {'uid':moodle_username,'cn':moodle_username,'sn':moodle_username,'uidNumber':uidNumber,'gidNumber':gidNumber,'homeDirectory':homePath,'loginShell':loginShell,'userPassword':randomPass,'mail': email})
-                            if add_result:
-                                add_home_flag = True
-                                if c.JupyterHub.log_level < 30:
-                                    sys.stderr.write("User (" + moodle_username + ") has been registered to ldap server.\n")
-                            else:
-                                sys.stderr.write("Error: Could not register new user to ldap server.\n")
-                                return
-                        localconn.unbind()
+            localconn.unbind()
 
-                        # System must create user's home directory.
-                        if add_home_flag and not os.path.isdir(homePath) and not os.path.isfile(homePath):
-                            if c.JupyterHub.log_level < 30:
-                                sys.stderr.write("Try to create " + homePath + ".\n")
-                            copyDirectory(skelton_directory, homePath)
-                            if os.path.isdir(homePath):
-                                if c.JupyterHub.log_level < 30:
-                                    sys.stderr.write("Try to set owner premission.\n")
-                                changeOwner(homePath, uidNumber, gidNumber)
-                        else:
-                            if c.JupyterHub.log_level < 30:
-                                sys.stderr.write(homePath + " already exists.\n")
+            # System must create user's home directory.
+            if add_home_flag and not os.path.isdir(homePath) and not os.path.isfile(homePath):
+                if c.JupyterHub.log_level < 30:
+                    sys.stderr.write("Try to create " + homePath + ".\n")
+                copyDirectory(skelton_directory, homePath)
+                if os.path.isdir(homePath):
+                    if c.JupyterHub.log_level < 30:
+                        sys.stderr.write("Try to set owner premission.\n")
+                    changeOwner(homePath, uidNumber, gidNumber)
+            else:
+                if c.JupyterHub.log_level < 30:
+                    sys.stderr.write(homePath + " already exists.\n")
 
-                    # Set environment variables.
-                    set_user_environment_variables(spawner, auth_state, moodle_username, uidNumber, gidNumber)
+        # Set environment variables.
+        set_user_environment_variables(spawner, auth_state, moodle_username, uidNumber, gidNumber)
 
-                    # Create userdata for subject.
-                    mount_volumes = create_userdata(spawner, auth_state, moodle_username)
+        # Create userdata for subject.
+        mount_volumes = create_userdata(spawner, auth_state, moodle_username)
 
-                    if type(mount_volumes) == list and len(mount_volumes) != 0:
-                        if c.JupyterHub.log_level < 30:
-                            sys.stderr.write("new mount_volumes = " + str(mount_volumes) + "\n")
-                        spawner.extra_container_spec['mounts'] = mount_volumes
-                        spawner.extra_container_spec['user'] = '0'
+        if type(mount_volumes) == list and len(mount_volumes) != 0:
+            if c.JupyterHub.log_level < 30:
+                sys.stderr.write("new mount_volumes = " + str(mount_volumes) + "\n")
+            spawner.extra_container_spec['mounts'] = mount_volumes
+            spawner.extra_container_spec['user'] = '0'
 
-                    role = get_user_role(auth_state)
+        role = get_user_role(auth_state)
 
-                    spawner.environment = { 'MOODLECOURSE': auth_state['context_label'], 'COURSEROLE': role, 'MPLCONFIGDIR': homePath + '/.cache/matplotlib' , 'TZ': 'Asia/Tokyo', 'GRANT_SUDO': 'yes', 'HOME': homePath, 'PWD': homePath, 'PATH': homePath + '/.local/bin:' + homePath + '/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin' }
+        spawner.environment = { 'MOODLECOURSE': auth_state['context_label'], 'COURSEROLE': role, 'MPLCONFIGDIR': homePath + '/.cache/matplotlib' , 'TZ': 'Asia/Tokyo', 'GRANT_SUDO': 'yes', 'HOME': homePath, 'PWD': homePath, 'PATH': homePath + '/.local/bin:' + homePath + '/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin' }
 
     if c.JupyterHub.log_level < 30:
         sys.stderr.write("auth_state_hook finished.\n")

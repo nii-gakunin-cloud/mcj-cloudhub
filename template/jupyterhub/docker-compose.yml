@@ -5,8 +5,7 @@ services:
     hostname: jupyterhub_simple
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
-      - {{jupyterhub_dir}}/jupyterhub/jupyterhub_config.py:/etc/jupyterhub/jupyterhub_config.py
-      - {{jupyterhub_dir}}/jupyterhub/jupyterhub_config.ini:/etc/jupyterhub/jupyterhub_config.ini
+      - {{jupyterhub_dir}}/jupyterhub:/etc/jupyterhub
       - {{jupyterhub_dir}}/jupyterhub/packages/ltiauthenticator:/usr/local/lib/python3.8/dist-packages/ltiauthenticator
       - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.8/dist-packages/dockerspawner
       - /jupytershare:/jupytershare
