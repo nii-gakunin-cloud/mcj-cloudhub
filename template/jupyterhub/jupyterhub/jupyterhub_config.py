@@ -67,7 +67,6 @@ lti_secret = config_ini.get('LTI', 'Lti_secret')
 jupyterhub_admin_users = config_ini.get('JUPYTERHUB', 'Admin_users')
 jupyterhub_groupid_teachers = config_ini.get('JUPYTERHUB', 'Groupid_teachers')
 jupyterhub_groupid_students = config_ini.get('JUPYTERHUB', 'Groupid_students')
-check_univ_role = bool(config_ini.get('JUPYTERHUB', 'Check_univ_role'))
 
 global_ldap_server = config_ini.get('GLOBAL_LDAP', 'Ldap_server')
 global_ldap_password = config_ini.get('GLOBAL_LDAP', 'Ldap_password')
@@ -941,31 +940,33 @@ def create_home_hook(spawner, auth_state):
     if auth_state:
         moodle_username = auth_state['ext_user_username']
         homePath = home_directory_root + '/' + moodle_username
-                
-        univ_role = get_user_role(auth_state)
+        
+        moodle_role = get_user_role(auth_state)
         uidNumber = -1
 
-        if check_univ_role:
-            try:
-                sys.path.append(os.path.dirname(__file__))
-                from jupyterhub_utils import get_univercity_role
-                univercity_role = get_univercity_role(moodle_username)
-
-                uidNumber = univercity_role.get('uidNumber', uidNumber)
-                univ_role = univercity_role.get('role', univ_role)
-            except Exception as e:
-                sys.stderr.write(f"{e}\n")
-                sys.stderr.write("cannot get univercity role\n")
-                return
+        try:
+            sys.path.append(os.path.dirname(__file__))
+            from organization_user import get_info
+            uidNumber, univ_role = get_info(
+                moodle_username, moodle_role)
+        except Exception as e:
+            sys.stderr.write(f"{e}\n")
+            sys.stderr.write("cannot get univercity role\n")
+            return
         
-        else:
-            try:
-                rootobj = pwd.getpwnam("root")
-            except KeyError:
-                sys.stderr.write("Error: Could not find root in passwd.\n")
-
-            uidNumber = rootobj[2]
+        if uidNumber is None or uidNumber == -1:
+            return
         
+        if univ_role is None:
+            return
+
+#         try:
+#             rootobj = pwd.getpwnam("root")
+#         except KeyError:
+#             sys.stderr.write("Error: Could not find root in passwd.\n")
+
+#         uidNumber = rootobj[2]
+
         if univ_role == 'Instructor':
             if c.JupyterHub.log_level < 30:
                 sys.stderr.write("user = teachers.\n")
