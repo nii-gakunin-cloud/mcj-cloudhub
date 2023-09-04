@@ -10,7 +10,7 @@ def get_info(moodle_username, moodle_role):
             role（String）: 'Instructor'または'Learner'
     """
     # 初期値
-    uidNumber = -1
+    uidNumber = 1000
     role = moodle_role
 
     from ldap3 import Server, Connection, ALL
