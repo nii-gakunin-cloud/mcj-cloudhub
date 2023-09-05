@@ -1,9 +1,6 @@
 import base64
-import configparser
 import copy
-import errno
 import hashlib
-import json
 import logging
 import os
 import pwd
@@ -69,64 +66,49 @@ c.JupyterHub.named_server_limit_per_user = 1
 c.JupyterHub.concurrent_spawn_limit = 100
 
 
-config_ini = configparser.ConfigParser()
-# config_ini_path = 'jupyterhub_config.ini'
-config_ini_path = os.path.dirname(__file__) + '/' + 'jupyterhub_config.ini'
+lti_consumer_key = '{{lti_consumer_key}}'
+lti_secret = '{{lti_secret}}'
 
-# Issue an error code where a config-file does not exist
-if not os.path.exists(config_ini_path):
-    raise FileNotFoundError(errno.ENOENT, os.strerror(
-        errno.ENOENT), config_ini_path)
+jupyterhub_admin_users = {{jupyterhub_admin_users}}
+jupyterhub_groupid_teachers = {{groupid_teachers}}
+jupyterhub_groupid_students = {{groupid_students}}
 
-config_ini.read(config_ini_path, encoding='utf-8')
+global_ldap_server = '{{global_ldap_server}}'
+global_ldap_password = '{{global_ldap_base_dn}}'
+global_ldap_base_dn = '{{global_ldap_password}}'
 
-lti_consumer_key = config_ini.get('LTI', 'Lti_consumer_key')
-lti_secret = config_ini.get('LTI', 'Lti_secret')
+local_ldap_server = '{{ldap_server}}'
+local_ldap_password = '{{ldap_password}}'
+local_ldap_base_dn = '{{ldap_base_dn}}'
+local_ldap_manager_dn = '{{ldap_manager_dn}}'
 
-jupyterhub_admin_users = config_ini.get('JUPYTERHUB', 'Admin_users')
-jupyterhub_groupid_teachers = config_ini.get('JUPYTERHUB', 'Groupid_teachers')
-jupyterhub_groupid_students = config_ini.get('JUPYTERHUB', 'Groupid_students')
+database_dbhost = '{{jh_db_host}}'
+database_username = '{{jh_db_user}}'
+database_password = '{{jh_db_password}}'
+database_dbname = '{{jh_db_name}}'
 
-global_ldap_server = config_ini.get('GLOBAL_LDAP', 'Ldap_server')
-global_ldap_password = config_ini.get('GLOBAL_LDAP', 'Ldap_password')
-global_ldap_base_dn = config_ini.get('GLOBAL_LDAP', 'Ldap_base_dn')
+moodle_database_dbhost = '{{moodle_db_host}}'
+moodle_database_username = '{{moodle_db_user}}'
+moodle_database_password = '{{moodle_db_password}}'
+moodle_database_dbname = '{{moodle_db_name}}'
 
-local_ldap_server = config_ini.get('LOCAL_LDAP', 'Ldap_server')
-local_ldap_password = config_ini.get('LOCAL_LDAP', 'Ldap_password')
-local_ldap_base_dn = config_ini.get('LOCAL_LDAP', 'Ldap_base_dn')
-local_ldap_manager_dn = config_ini.get('LOCAL_LDAP', 'Ldap_manager_dn')
+home_directory_root = '{{home_directory_root}}'
+skelton_directory = '{{skelton_directory}}'
+nbgrader_exchange_root = '{{nbgrader_exchange_root}}'
+nbgrader_template_root = '{{nbgrader_template_root}}'
+nbgrader_template_students = '{{nbgrader_template_students}}'
+nbgrader_template_teachers = '{{nbgrader_template_teachers}}'
+subject_shared_root = '{{subject_shared_root}}'
 
-database_dbhost = config_ini.get('DATABASE', 'Database_host')
-database_username = config_ini.get('DATABASE', 'Database_username')
-database_password = config_ini.get('DATABASE', 'Database_password')
-database_dbname = config_ini.get('DATABASE', 'Database_dbname')
+email_domain = '{{email_domain}}'
+mem_guarantee = '{{mem_guarantee}}'
+teacher_mem_limit = '{{teacher_mem_limit}}'
+student_mem_limit = '{{student_mem_limit}}'
+cpu_guarantee = float({{cpu_guarantee}})
+cpu_limit = float({{cpu_limit}})
 
-moodle_database_dbhost = config_ini.get('MOODLE', 'Database_host')
-moodle_database_username = config_ini.get('MOODLE', 'Database_username')
-moodle_database_password = config_ini.get('MOODLE', 'Database_password')
-moodle_database_dbname = config_ini.get('MOODLE', 'Database_dbname')
-
-home_directory_root = config_ini.get('SHARED_DIRECTORY', 'Home_directory_root')
-skelton_directory = config_ini.get('SHARED_DIRECTORY', 'Skelton_directory')
-nbgrader_exchange_root = config_ini.get(
-    'SHARED_DIRECTORY', 'Nbgrader_exchange_root')
-nbgrader_template_root = config_ini.get(
-    'SHARED_DIRECTORY', 'Nbgrader_template_root')
-nbgrader_template_students = config_ini.get(
-    'SHARED_DIRECTORY', 'Nbgrader_template_students')
-nbgrader_template_teachers = config_ini.get(
-    'SHARED_DIRECTORY', 'Nbgrader_template_teachers')
-subject_shared_root = config_ini.get('SHARED_DIRECTORY', 'Subject_shared_root')
-
-email_domain = config_ini.get('USER_DATA', 'Email_domain')
-mem_guarantee = config_ini.get('RESOURCE', 'Mem_guarantee')
-teacher_mem_limit = config_ini.get('RESOURCE', 'Teacher_mem_limit')
-student_mem_limit = config_ini.get('RESOURCE', 'Student_mem_limit')
-cpu_guarantee = float(config_ini.get('RESOURCE', 'Cpu_guarantee'))
-cpu_limit = float(config_ini.get('RESOURCE', 'Cpu_limit'))
-
-notebook_image = config_ini.get('DOCKER', 'Notebook_image')
-swarm_network = config_ini.get('DOCKER', 'Swarm_network')
+notebook_image = '{{singleuser_image}}'
+swarm_network = '{{swarm_network}}'
 
 logger.info(lti_consumer_key)
 logger.info(lti_secret)
@@ -165,8 +147,7 @@ c.LTI11Authenticator.consumers = {lti_consumer_key: lti_secret}
 c.LTI11Authenticator.create_system_users = False
 
 # Set administrator users.
-c.Authenticator.admin_users = json.loads(
-    jupyterhub_admin_users.replace("'", '"'))
+c.Authenticator.admin_users = jupyterhub_admin_users
 logger.info(f"adminusers = {str(list(c.Authenticator.admin_users))}")
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
@@ -919,7 +900,7 @@ def pass_gen(size=12):
     digest_pass = base64.b64encode(
         '{}{}'.format(md.digest(), salt).encode('utf-8'))
     digest_pass = digest_pass.strip()
-    random_pass = '{{SSHA}}{}'.format(digest_pass.decode('utf-8'))
+    random_pass = '{SSHA}' + digest_pass.decode('utf-8')
     return random_pass
 
 
