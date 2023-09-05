@@ -963,7 +963,7 @@ def create_home_hook(spawner, auth_state):
             sys.path.append(os.path.dirname(__file__))
             from organization_user import get_info
             uidNumber, univ_role = get_info(
-                moodle_username, moodle_role)
+                moodle_username, moodle_role, auth_state)
         except Exception as e:
             sys.stderr.write(e)
             sys.stderr.write("cannot get univercity role")

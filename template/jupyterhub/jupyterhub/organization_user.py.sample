@@ -1,9 +1,10 @@
-def get_info(moodle_username, moodle_role):
+def get_info(moodle_username, moodle_role, lti_param):
     """大学での教師/学生を判別する処理
 
         Args:
             moodle_username(String): Moodleでのユーザ名 ex.'admin'
             moodle_role(String): Moodleでのrole ex.'Instructor'
+            lti_param(dict): LTI認証連携でLMSから渡されるパラメータ一式
 
         Returns:
             uidNumber（Number）: ユーザID（数値のみ）
