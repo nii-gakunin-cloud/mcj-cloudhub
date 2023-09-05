@@ -454,7 +454,7 @@ def get_course_students(shortname):
 
         # コースコンテキストの値を取得
         cur.execute(
-            f"select id from mdl_context where instanceid='{str(courseid)}'")
+            f"select id from mdl_context where instanceid='{str(courseid)}' and contextlevel=50")
         rows = cur.fetchall()
         for row in rows:
             contextid = int(row['id'])
@@ -666,7 +666,7 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
 
                 dbpath = f'sqlite:///{user_home}/nbgrader/{shortname}/gradebook.db'
                 course_root = f"c.CourseDirectory.root = '{course_path}'"
-                db_url = f"c.CourseDirectory.db_url = '{dbpath}"
+                db_url = f"c.CourseDirectory.db_url = '{dbpath}'"
                 logfile_path = \
                     f"c.NbGrader.logfile = '{instructor_root_path}/nbgrader.log'"
 
