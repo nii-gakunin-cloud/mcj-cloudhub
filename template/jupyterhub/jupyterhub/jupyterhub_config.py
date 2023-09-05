@@ -1022,7 +1022,7 @@ def create_home_hook(spawner, auth_state):
             logger.debug("Try to create " + homePath + ".")
             copyDirectory(skelton_directory, homePath)
             if os.path.isdir(homePath):
-                logger.debug("Try to set owner premission.")
+                logger.debug("Try to set owner permission.")
                 changeOwner(homePath, uidNumber, gidNumber)
         else:
             logger.debug(homePath + " already exists.")
