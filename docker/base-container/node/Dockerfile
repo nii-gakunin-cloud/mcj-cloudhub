@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=harbor.vcloud.nii.ac.jp/vcp/coursewarehub:bc-common
+ARG BASE_IMAGE=rterayama1103/cwhnfsmodify-common:0.1.2
 # hadolint ignore=DL3006
 FROM $BASE_IMAGE
 
