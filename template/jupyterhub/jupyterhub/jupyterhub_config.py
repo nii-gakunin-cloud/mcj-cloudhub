@@ -73,10 +73,6 @@ jupyterhub_admin_users = {{jupyterhub_admin_users}}
 jupyterhub_groupid_teachers = {{groupid_teachers}}
 jupyterhub_groupid_students = {{groupid_students}}
 
-global_ldap_server = '{{global_ldap_server}}'
-global_ldap_password = '{{global_ldap_base_dn}}'
-global_ldap_base_dn = '{{global_ldap_password}}'
-
 local_ldap_server = '{{ldap_server}}'
 local_ldap_password = '{{ldap_password}}'
 local_ldap_base_dn = '{{ldap_base_dn}}'
@@ -115,9 +111,6 @@ logger.info(lti_secret)
 logger.info(jupyterhub_admin_users)
 logger.info(jupyterhub_groupid_teachers)
 logger.info(jupyterhub_groupid_students)
-logger.info(global_ldap_server)
-logger.info(global_ldap_password)
-logger.info(global_ldap_base_dn)
 logger.info(local_ldap_server)
 logger.info(local_ldap_password)
 logger.info(local_ldap_base_dn)
@@ -946,8 +939,8 @@ def create_home_hook(spawner, auth_state):
             uidNumber, univ_role = get_info(
                 moodle_username, moodle_role, auth_state)
         except Exception as e:
-            sys.stderr.write(e)
-            sys.stderr.write("cannot get univercity role")
+            logger.error(e)
+            logger.error("cannot get univercity role")
             return
 
         if uidNumber is None or uidNumber == -1:

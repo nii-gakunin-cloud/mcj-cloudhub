@@ -78,3 +78,4 @@ RUN mv /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp /
 RUN rm /opt/conda/lib/python3.8/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
 ADD manage_submissions.js /opt/conda/lib/python3.8/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
 RUN sed -i -e 's/return 660 if self\.coursedir\.groupshared else 640/return 664 if self\.coursedir\.groupshared else 644/g' /opt/conda/lib/python3.8/site-packages/nbgrader/converters/generate_feedback.py
+RUN pip3 install traitlets==5.9.0
