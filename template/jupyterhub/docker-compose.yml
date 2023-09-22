@@ -8,8 +8,8 @@ services:
       - {{jupyterhub_dir}}/jupyterhub:/etc/jupyterhub
       - {{jupyterhub_dir}}/jupyterhub/packages/ltiauthenticator:/usr/local/lib/python3.8/dist-packages/ltiauthenticator
       - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.8/dist-packages/dockerspawner
-      - /jupytershare:/jupytershare
-      - /home:/home
+      - /exchange:/exchange
+      - /jupyter:/jupyter
     networks:
       - {{swarm_network}}
     ports:

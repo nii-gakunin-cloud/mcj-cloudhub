@@ -23,8 +23,8 @@ RUN rm -fr /usr/local/bin/start.sh && rm -fr /usr/local/bin/start-singleuser.sh
 ADD start.sh /usr/local/bin/start.sh
 ADD start-singleuser.sh /usr/local/bin/start-singleuser.sh
 RUN chmod 4755 /usr/local/bin/start.sh && chmod 4755 /usr/local/bin/start-singleuser.sh
-ENV LDAP_SEREVER "openldap:1389"
-ENV LDAP_BASE_DN "dc=jupyterhub,dc=server,dc=sample,dc=jp"
+ENV LDAP_SEREVER "{{ldap_server}}"
+ENV LDAP_BASE_DN "{{ldap_base}}"
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq libnss-ldap libpam-ldap ldap-utils
 ADD ldap-auth-config /etc/auth-client-config/profile.d/ldap-auth-config
 RUN echo "SASL_NOCANON    off"                  > /etc/ldap.conf ;\

@@ -15,6 +15,8 @@ from ldap3.core.exceptions import LDAPNoSuchObjectResult
 import pymysql.cursors
 
 LOG_FORMAT = "[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s"
+DIR_NAME_TEMPLATE_TEACHER = 'teachers'
+DIR_NAME_TEMPLATE_STUDENT = 'students'
 
 # logger setting
 logger = logging.getLogger()
@@ -92,12 +94,9 @@ moodle_database_password = '{{moodle_db_password}}'
 moodle_database_dbname = '{{moodle_db_name}}'
 
 home_directory_root = '{{home_directory_root}}'
-skelton_directory = '{{skelton_directory}}'
-nbgrader_exchange_root = '{{nbgrader_exchange_root}}'
-nbgrader_template_root = '{{nbgrader_template_root}}'
-nbgrader_template_students = '{{nbgrader_template_students}}'
-nbgrader_template_teachers = '{{nbgrader_template_teachers}}'
-subject_shared_root = '{{subject_shared_root}}'
+share_directory_root = '{{share_directory_root}}'
+
+skelton_directory = f'{home_directory_root}/skelton'
 
 email_domain = '{{email_domain}}'
 mem_guarantee = '{{mem_guarantee}}'
@@ -127,12 +126,8 @@ logger.info(moodle_database_username)
 logger.info(moodle_database_password)
 logger.info(moodle_database_dbname)
 logger.info(home_directory_root)
+logger.info(share_directory_root)
 logger.info(skelton_directory)
-logger.info(nbgrader_exchange_root)
-logger.info(nbgrader_template_root)
-logger.info(nbgrader_template_students)
-logger.info(nbgrader_template_teachers)
-logger.info(subject_shared_root)
 logger.info(email_domain)
 
 # Set LTI authenticator.
@@ -532,15 +527,19 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
 
     logger.debug("Hello, create_nbgrader_path.")
 
-    exchange_root_path = nbgrader_exchange_root
-    exchange_course_path = exchange_root_path + '/' + shortname
-    exchange_inbound_path = exchange_course_path + "/inbound"
-    exchange_outbound_path = exchange_course_path + "/outbound"
-    exchange_feedback_path = exchange_course_path + "/feedback"
+    exchange_root_path = f'{share_directory_root}/nbgrader/exchange'
+    exchange_course_path = f'{exchange_root_path}/{shortname}'
+    exchange_inbound_path = f'{exchange_course_path}/inbound'
+    exchange_outbound_path = f'{exchange_course_path}/outbound'
+    exchange_feedback_path = f'{exchange_course_path}/feedback'
 
-    user_home = home_directory_root + '/' + username
-
-    user_config_path = user_home + '/.jupyter'
+    user_home = f'{home_directory_root}/{username}'
+    user_config_path = f'{user_home}/.jupyter'
+    user_nbconfig_path = f'{user_config_path}/nbconfig'
+    user_jupyter_config_file = \
+        f'{user_config_path}/jupyter_notebook_config.json'
+    user_notebook_config_file = f'{user_nbconfig_path}/notebook.json'
+    user_tree_config_file = f'{user_nbconfig_path}/tree.json'
 
     try:
         # Create exchange root directory
@@ -548,35 +547,30 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
                    gid=teachersid)
 
         # Create user's config directory
-        user_config_path = user_home + '/.jupyter'
         create_dir(user_config_path, permission=0o0755, uid=userid,
                    gid=groupid)
 
         # Create user's nbconfig directory
-        user_nbconfig_path = user_config_path + '/nbconfig'
         create_dir(user_nbconfig_path, permission=0o0755, uid=userid,
                    gid=groupid)
 
         # Remove existing jupyter notebook config file
-        user_jupyter_config_file = user_config_path \
-            + '/jupyter_notebook_config.json'
         if os.path.exists(user_jupyter_config_file):
             os.remove(user_jupyter_config_file)
 
         # Remove existing notebook config file
-        user_notebook_config_file = user_nbconfig_path + '/notebook.json'
         if os.path.exists(user_notebook_config_file):
             os.remove(user_notebook_config_file)
 
         # Remove existing tree config file
-        user_tree_config_file = user_nbconfig_path + '/tree.json'
         if os.path.exists(user_tree_config_file):
             os.remove(user_tree_config_file)
 
-        nbgrader_template_path = nbgrader_template_students
-
+        nbgrader_template_path = f'{share_directory_root}/nbgrader/templates'
         if role == "Instructor":
-            nbgrader_template_path = nbgrader_template_teachers
+            nbgrader_template_path = f'{nbgrader_template_path}/{DIR_NAME_TEMPLATE_TEACHER}'
+        else:
+            nbgrader_template_path = f'{nbgrader_template_path}/{DIR_NAME_TEMPLATE_STUDENT}'
 
         # Create user's jupyter notebook config file
         if os.path.exists(user_config_path):
@@ -598,7 +592,7 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
             os.chmod(user_tree_config_file, 0o0644)
 
         if role == "Instructor":
-            # TODO: 要確認 論文だと0o0555
+            # TODO: 要確認 0o0555?
             create_dir(exchange_course_path, permission=0o0755, uid=userid,
                        gid=teachersid)
             create_dir(exchange_inbound_path, permission=0o2733, uid=userid,
@@ -723,8 +717,6 @@ def create_userdata(spawner, auth_state, username):
 
     logger.debug("Hello, create_userdata.")
 
-    share_root_path = '/jupytershare'
-
     roles = auth_state['roles']
     rolelist = roles.split(',')
 
@@ -733,7 +725,7 @@ def create_userdata(spawner, auth_state, username):
     course_shortname = auth_state['context_label']
     moodle_username = auth_state['ext_user_username']
 
-    ext_root_path = share_root_path + '/class'
+    ext_root_path = share_directory_root + '/class'
     ext_course_path = ext_root_path + "/" + course_shortname
 
     user_home_path = home_directory_root + '/' + moodle_username
@@ -819,7 +811,7 @@ def create_userdata(spawner, auth_state, username):
             mount_volumes = [
                 {'type': 'bind',
                  'source': user_home_path,
-                 'target': user_home_path,
+                 'target': f'/home/{moodle_username}',
                  'mode': 'rw'}]
 
             if role == "Instructor":
@@ -845,11 +837,11 @@ def create_userdata(spawner, auth_state, username):
                 logger.error("Could not create lcoal course path.")
                 return []
 
-            if os.path.exists(share_root_path):
+            if os.path.exists(share_directory_root):
                 mount_volumes.append(
                     {'type': 'bind',
-                     'source': share_root_path,
-                     'target': share_root_path,
+                     'source': share_directory_root,
+                     'target': share_directory_root,
                      'mode': 'rw'})
                 logger.debug(str(mount_volumes))
 
@@ -1020,7 +1012,7 @@ def create_home_hook(spawner, auth_state):
                  'sn': moodle_username,
                  'uidNumber': uidNumber,
                  'gidNumber': gidNumber,
-                 'homeDirectory': homePath,
+                 'homeDirectory': f'/home/{moodle_username}',
                  'loginShell': loginShell,
                  'userPassword': randomPass,
                  'mail': email},

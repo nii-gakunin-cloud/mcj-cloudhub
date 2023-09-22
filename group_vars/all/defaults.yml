@@ -4,3 +4,5 @@ jupyterhub_dir: "{{base_dir}}/jupyterhub"
 notebook_dir: "{{base_dir}}/notebook"
 jupyterhub_image_dir: "{{jupyterhub_dir}}/jupyterhub/images"
 notebook_image_dir: "{{notebook_dir}}/images"
+groupid_teachers: 22000
+groupid_students: 11000

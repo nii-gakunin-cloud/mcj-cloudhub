@@ -32,13 +32,6 @@ ${EXPORT_DIR}/${HUB_NAME}/share /share none bind 0 0
 EOF
 fi
 
-grep -wq jupytershare /etc/fstab
-if [ $? != 0 ]; then
-cat >> /etc/fstab <<EOF
-${EXPORT_DIR}/${HUB_NAME}/jupytershare /jupytershare none bind 0 0
-EOF
-fi
-
 else
 
 rm -f /etc/systemd/system/multi-user.target.wants/coursewarehub-dirs.service
