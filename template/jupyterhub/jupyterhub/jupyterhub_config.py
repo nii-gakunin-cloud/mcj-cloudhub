@@ -11,7 +11,7 @@ import sys
 import grp
 
 from ldap3 import Server, Connection, ALL
-import ldap3.core.exceptions as exceptions
+from ldap3.core.exceptions import LDAPNoSuchObjectResult
 import pymysql.cursors
 
 LOG_FORMAT = "[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s"
@@ -24,6 +24,8 @@ log_formatter = logging.Formatter(LOG_FORMAT)
 handler.setFormatter(log_formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
+
+c = get_config() # noqa
 
 # The proxy is in another container
 c.ConfigurableHTTPProxy.should_start = False
@@ -65,6 +67,7 @@ c.JupyterHub.named_server_limit_per_user = 1
 # Maximum number of concurrent users that can be spawning at a time.
 c.JupyterHub.concurrent_spawn_limit = 100
 
+EXPECTED_ROLES = ("Instructor", "Learner")
 
 lti_consumer_key = '{{lti_consumer_key}}'
 lti_secret = '{{lti_secret}}'
@@ -141,7 +144,6 @@ c.LTI11Authenticator.create_system_users = False
 
 # Set administrator users.
 c.Authenticator.admin_users = jupyterhub_admin_users
-logger.info(f"adminusers = {str(list(c.Authenticator.admin_users))}")
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     logger.warn(
@@ -242,7 +244,7 @@ def set_user_environment_variables(spawner, auth_state, username):
         c.UniversitySwarmSpawner.mem_limit = student_mem_limit
 
 
-def changeOwner(homePath, uid, gid):
+def change_owner(homePath, uid, gid):
     for root, dirs, files in os.walk(homePath):
         for d in dirs:
             os.chown(os.path.join(root, d), uid, gid)
@@ -251,7 +253,7 @@ def changeOwner(homePath, uid, gid):
     os.chown(homePath, uid, gid)
 
 
-def copyDirectory(src, dest):
+def copy_directory(src, dest):
     try:
         shutil.copytree(src, dest)
     # Directories are the same
@@ -283,7 +285,7 @@ def search_local_ldap(username, attributes: list):
                 f'uid={username},{c.UniversitySwarmSpawner.ldap_base_dn}',
                 '(objectClass=*)',
                 attributes=attributes)
-        except exceptions.LDAPNoSuchObjectResult:
+        except LDAPNoSuchObjectResult:
             logger.warning(f"No such user :{username}")
             return
 
@@ -292,52 +294,52 @@ def search_local_ldap(username, attributes: list):
     except Exception as e:
         raise e
     finally:
-        conn.unbind()
+        if 'conn' in locals():
+            conn.unbind()
 
 
 def get_ldap_userid(username):
 
     logger.debug("Hello, get_ldap_userid.")
     attr = 'uidNumber'
-    uidNumber = -1
+    uid_number = -1
 
     try:
         search_result = search_local_ldap(username, [attr])
     except Exception as e:
         logger.error("Cannot connect to local ldap server.")
         logger.error(e)
-        return uidNumber
-    # The user is already registered in local ldap server.
+        return uid_number
+    # The user is exists in local ldap server.
     if search_result:
-        logger.debug(f"User {username} already exists in local ldap.")
+        logger.debug(f"User {username} exists in local ldap.")
         logger.debug(str(search_result[0]))
-        uidNumber = search_result[0][attr].value
+        uid_number = search_result[0][attr].value
 
     logger.debug("Finish, get_ldap_userid.")
-
-    return uidNumber
+    return uid_number
 
 
 def get_ldap_groupid(username):
     logger.debug("Hello, get_ldap_groupid.")
 
     attr = 'gidNumber'
-    gidNumber = -1
+    gid_number = -1
 
     try:
         search_result = search_local_ldap(username, [attr])
     except Exception as e:
         logger.error("Cannot connect to local ldap server.")
         logger.error(e)
-        return gidNumber
+        return gid_number
 
     if search_result:
         logger.debug("User (" + username + ") already exists in local ldap.")
         logger.debug(str(search_result[0]))
-        gidNumber = search_result[0][attr].value
+        gid_number = search_result[0][attr].value
 
     logger.debug("Finish, get_ldap_groupid.")
-    return gidNumber
+    return gid_number
 
 
 def create_common_share_path(ext_course_path, local_course_path, role, rootid, teachersid):
@@ -542,7 +544,6 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
 
     try:
         # Create exchange root directory
-        # TODO: 要確認 論文だとroot:root
         create_dir(exchange_root_path, permission=0o0755, uid=rootid,
                    gid=teachersid)
 
@@ -715,7 +716,6 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
         return
 
     logger.debug("Finish, create_nbgrader_path.")
-
     return
 
 
@@ -745,7 +745,6 @@ def create_userdata(spawner, auth_state, username):
 
     change_flag = False
 
-    # TODO 条件見直し
     if type(spawner.extra_container_spec) != dict \
             or 'mounts' not in spawner.extra_container_spec:
         change_flag = True
@@ -919,9 +918,26 @@ def get_user_role(auth_state):
     return role
 
 
+def validate_num(value, arg_name, required=False):
+
+    if required and value is None:
+        logger.error(f"{arg_name} is required")
+        return
+
+    try:
+        ret = int(value)
+    except ValueError:
+        logger.error(f"invalid {arg_name}")
+        return
+
+    return ret
+
+
 def create_home_hook(spawner, auth_state):
 
     logger.debug("Hello, auth_state_hook.")
+
+    spawner.success_auth_state_hook = False
 
     search_local_ldap('admin', ['uidNumber'])
 
@@ -932,21 +948,28 @@ def create_home_hook(spawner, auth_state):
 
         moodle_role = get_user_role(auth_state)
         uidNumber = -1
+        univ_role = moodle_role
 
-        try:
-            sys.path.append(os.path.dirname(__file__))
-            from organization_user import get_info
-            uidNumber, univ_role = get_info(
-                moodle_username, moodle_role, auth_state)
-        except Exception as e:
-            logger.error(e)
-            logger.error("cannot get univercity role")
+        sys.path.append(os.path.dirname(__file__))
+        from organization_user import get_info
+        logger.debug("start get organization user data")
+
+        user_info = get_info(
+            moodle_username, moodle_role, auth_state)
+
+        if not user_info or not len(user_info) == 2:
+            logger.error("organization_user.py must return 2 args")
             return
 
-        if uidNumber is None or uidNumber == -1:
+        logger.debug("finish get organization user data")
+
+        uidNumber, univ_role = user_info
+        uidNumber = validate_num(uidNumber, "uidNumber", required=True)
+        if uidNumber is None:
             return
 
-        if univ_role is None:
+        if univ_role is None or univ_role not in EXPECTED_ROLES:
+            logger.error("invalid univ_role user:{moodle_username} value:{univ_role}")
             return
 
         if univ_role == 'Instructor':
@@ -964,7 +987,8 @@ def create_home_hook(spawner, auth_state):
             localserver,
             c.UniversitySwarmSpawner.ldap_manager_dn,
             password=c.UniversitySwarmSpawner.ldap_password,
-            read_only=False)
+            read_only=False,
+            )
         conn_result = localconn.bind()
 
         if not conn_result:
@@ -972,19 +996,22 @@ def create_home_hook(spawner, auth_state):
             return
 
         logger.debug("Connect to local ldap server.")
+        add_home_flag = False
+
         search_result = localconn.search(
             f'uid={moodle_username},{c.UniversitySwarmSpawner.ldap_base_dn}',
             '(objectClass=*)')
-        add_home_flag = False
+
         # The user is already registered in local ldap server.
         if search_result:
             logger.debug("User (" + moodle_username +
                          ") already exists in local ldap.")
             add_home_flag = True
         else:
-            logger.debug("User (" + moodle_username + ") does not exists.")
-            email = moodle_username + "@" + email_domain
+            logger.debug(f"User ({moodle_username}) does not exists.")
+            email = f"{moodle_username}@{email_domain}"
             randomPass = pass_gen(12)
+
             add_result = localconn.add(
                 f'uid={moodle_username},{c.UniversitySwarmSpawner.ldap_base_dn}',
                 ['posixAccount', 'inetOrgPerson'],
@@ -996,8 +1023,8 @@ def create_home_hook(spawner, auth_state):
                  'homeDirectory': homePath,
                  'loginShell': loginShell,
                  'userPassword': randomPass,
-                 'mail': email})
-
+                 'mail': email},
+                )
             if not add_result:
                 logger.error("Could not register new user to ldap server.")
                 return
@@ -1005,7 +1032,6 @@ def create_home_hook(spawner, auth_state):
             add_home_flag = True
             logger.debug("User (" + moodle_username +
                          ") has been registered to ldap server.")
-
         localconn.unbind()
 
         # System must create user's home directory.
@@ -1013,10 +1039,10 @@ def create_home_hook(spawner, auth_state):
                 and not os.path.isfile(homePath):
 
             logger.debug("Try to create " + homePath + ".")
-            copyDirectory(skelton_directory, homePath)
+            copy_directory(skelton_directory, homePath)
             if os.path.isdir(homePath):
                 logger.debug("Try to set owner permission.")
-                changeOwner(homePath, uidNumber, gidNumber)
+                change_owner(homePath, uidNumber, gidNumber)
         else:
             logger.debug(homePath + " already exists.")
 
@@ -1045,14 +1071,20 @@ def create_home_hook(spawner, auth_state):
                     + f'{homePath}/bin:/usr/local/bin:/usr/local/sbin:'
                     + '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin'}
 
+    spawner.success_auth_state_hook = True
     logger.debug("auth_state_hook finished.")
 
 
-c.UniversitySwarmSpawner.auth_state_hook = create_home_hook
+async def create_dir_hook(spawner):
 
-
-def create_dir_hook(spawner):
     username = spawner.user.name
+
+    # auth_state_hookが失敗し中断された場合でも、spawn処理に進んでしまう件への対応
+    # https://github.com/jupyterhub/jupyterhub/issues/3134
+    if not spawner.success_auth_state_hook:
+        logger.error(f"auth_state_hook failed user:{username}")
+        await spawner.stop()
+        return
 
     logger.debug(f"Hello, {username}, pre_spawn_hook.")
 
@@ -1066,3 +1098,4 @@ def create_dir_hook(spawner):
 
 
 c.UniversitySwarmSpawner.pre_spawn_hook = create_dir_hook
+c.UniversitySwarmSpawner.auth_state_hook = create_home_hook

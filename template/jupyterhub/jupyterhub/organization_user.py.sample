@@ -15,6 +15,7 @@ def get_info(moodle_username, moodle_role, lti_param):
     role = moodle_role
 
     from ldap3 import Server, Connection, ALL
+    from ldap3.core.exceptions import LDAPNoSuchObjectResult
     import sys
     global_ldap_server = '172.30.2.120:1389'
     global_ldap_base_dn = 'ou=People,dc=ldap,dc=server,dc=sample,dc=jp'
@@ -22,31 +23,33 @@ def get_info(moodle_username, moodle_role, lti_param):
     univserver = Server(global_ldap_server, get_info=ALL)
 
     if len(global_ldap_password) >= 5:
-        univconn = Connection(univserver, password=global_ldap_password)
+        univconn = Connection(univserver, password=global_ldap_password, raise_exceptions=True)
     else:
-        univconn = Connection(univserver)
+        univconn = Connection(univserver, raise_exceptions=True)
 
-    conn_result = univconn.bind()
-    # if connection to university ldap server failed.
-    if not conn_result:
-        sys.stderr.write("Cannot connect to ldap server in yuniversity.\n")
-        return
-    # if connection to university ldap server succeeded.
-    else:
+    try:
+        conn_result = univconn.bind()
+    except Exception as e:
+        sys.stderr.write("Cannot connect to ldap server in university.\n")
+        univconn.unbind()
+        raise
+
+    try:
         search_result = univconn.search(
             f'uid={moodle_username},{global_ldap_base_dn}',
             '(objectclass=*)',
             attributes=['uidNumber','gidNumber','homeDirectory'])
 
-        # when user is not a staff/student in university.
-        if not search_result:
-            sys.stderr.write("Error: User [" + moodle_username + "] does not exist in university ldap.\n")
-            return
-
-    # get properies for user.
-    uidNumber = univconn.entries[0]['uidNumber'].value
-    gidNumber = univconn.entries[0]['gidNumber'].value
-    homeDirectory = univconn.entries[0]['homeDirectory'].value
+        # get properties for user.
+        uidNumber = univconn.entries[0]['uidNumber'].value
+        gidNumber = univconn.entries[0]['gidNumber'].value
+        homeDirectory = univconn.entries[0]['homeDirectory'].value
+ 
+    except LDAPNoSuchObjectResult:
+        sys.stderr.write(f"Error: User {moodle_username} does not exist in university ldap.\n")
+        return
+    finally:
+        univconn.unbind()
 
     if gidNumber == uidNumber and not homeDirectory.startswith('/st'):
         role = 'Instructor'

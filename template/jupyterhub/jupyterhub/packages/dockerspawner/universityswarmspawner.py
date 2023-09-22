@@ -5,29 +5,32 @@ import asyncio
 from pprint import pformat
 from textwrap import dedent
 
-from traitlets import Bool
-from traitlets import Integer
-from traitlets import Unicode
-
 from docker.errors import APIError
-from docker.types import ContainerSpec
-from docker.types import DriverConfig
-from docker.types import EndpointSpec
-from docker.types import Mount
-from docker.types import Placement
-from docker.types import Resources
-from docker.types import TaskTemplate
-from traitlets import default
-from traitlets import Dict
-from traitlets import Unicode
-
-from ldap3 import Server
-from ldap3 import Connection
-from ldap3 import ALL
-
-import sys
+from docker.types import (
+    ContainerSpec,
+    DriverConfig,
+    EndpointSpec,
+    Mount,
+    Placement,
+    Resources,
+    TaskTemplate)
+from ldap3 import (
+    Server,
+    Connection,
+    ALL)
+from traitlets import (
+    default,
+    Dict,
+    Unicode,
+    Integer)
 
 from .dockerspawner import DockerSpawner
+
+
+DOCKER_SERVICE_STATES_NO_LOG = {
+    "running", "starting", "pending", "preparing"}
+DOCKER_STATE_DESIRED = "running"
+
 
 class UniversitySwarmSpawner(DockerSpawner):
     """A Spawner for JupyterHub that runs each user's server in a separate docker service"""
@@ -38,7 +41,7 @@ class UniversitySwarmSpawner(DockerSpawner):
     @default("pull_policy")
     def _default_pull_policy(self):
         # pre-pulling doesn't usually make sense on swarm
-        # unless it's a single-node cluster, so skip it by efault
+        # unless it's a single-node cluster, so skip it by default
         return "skip"
 
     @property
@@ -142,49 +145,6 @@ class UniversitySwarmSpawner(DockerSpawner):
         else:
             return []
 
-#    host_homedir_format_string = Unicode(
-#        "/home/{username}",
-#        config=True,
-#        help=dedent(
-#            """
-#            Format string for the path to the user's home directory on the host.
-#            The format string should include a `username` variable, which will
-#            be formatted with the user's username.
-#
-#            If the string is empty or `None`, the user's home directory will
-#            be looked up via the `pwd` database.
-#            """
-#        ),
-#    )
-
-#    image_homedir_format_string = Unicode(
-#        "/home/{username}",
-#        config=True,
-#        help=dedent(
-#            """
-#            Format string for the path to the user's home directory
-#            inside the image.  The format string should include a
-#            `username` variable, which will be formatted with the
-#            user's username.
-#            """
-#        ),
-#    )
-
-#    run_as_root = Bool(
-#        False,
-#        config=True,
-#        help="""Run the container as root
-#
-#        Relies on the image itself having handling of $NB_UID and $NB_GID
-#        options to switch.
-#
-#        This was the default behavior prior to 0.12, but has become opt-in.
-#        This enables images to nicely map usernames to userids inside the container.
-#
-#        .. versionadded:: 0.12
-#        """,
-#    )
-
     user_id = Integer(
         -1,
         config=True,
@@ -256,76 +216,82 @@ class UniversitySwarmSpawner(DockerSpawner):
         help=("""Password to connect to LDAP server as manager"""),
     )
 
-    from ldap3 import Server, Connection, ALL
-    def ldap_get_attribute(self, attrs = ['uid']):
-        attr_value = None
+    def ldap_get_attribute(self, attrs=['uid']):
         server = Server(self.ldap_server, get_info=ALL)
         if len(self.ldap_password) > 0 and self.ldap_password != "abcd1234":
-            conn = Connection(server, self.ldap_manager_dn, self.ldap_password, read_only=True, auto_bind=True)
+            conn = Connection(server,
+                              self.ldap_manager_dn,
+                              self.ldap_password,
+                              read_only=True,
+                              auto_bind=True,raise_exceptions=True)
         else:
-            conn = Connection(server, self.ldap_manager_dn, read_only=True, auto_bind=True)
-
+            conn = Connection(server,
+                              self.ldap_manager_dn,
+                              read_only=True,
+                              auto_bind=True,raise_exceptions=True)
+        response = None
         if conn:
-            sys.stderr.write("Connect to local LDAP server.\n")
-            result = conn.search('uid=' + self.user.name + ',' + self.ldap_base_dn, '(objectclass=*)', attributes=attrs)
+            self.log.info("Connect to local LDAP server.\n")
+            result = conn.search(f'uid={self.user.name},{self.ldap_base_dn}',
+                                 '(objectclass=*)',
+                                 attributes=attrs,
+                                 )
+
             if result:
                 response = conn.entries[0].entry_attributes_as_dict
+
             else:
-                sys.stderr.write("Cannot find attribute: " + response + "\n")
+                self.log.error(f"Cannot find attribute: {attrs}\n")
             conn.unbind()
         else:
-            sys.stderr.write("Could not connect to local LDAP server.\n")
+            self.log.error("Could not connect to local LDAP server.\n")
 
         return response
 
     def ldap_get_userid(self):
         response = self.ldap_get_attribute(['uidNumber'])
-        uidNumber = response['uidNumber']
-        if uidNumber == None:
-            return 0
-        else:
-            return uidNumber[0]
+        default_uid = 0
+
+        if response is None:
+            return default_uid
+
+        if 'uidNumber' not in response:
+            return default_uid
+
+        if response['uidNumber'] is None:
+            return default_uid
+
+        return response['uidNumber'][0]
 
     def ldap_get_groupid(self):
         response = self.ldap_get_attribute(['gidNumber'])
-        gidNumber = response['gidNumber']
-        if gidNumber == None:
-            return 0
-        else:
-            return gidNumber[0]
+        default_gid = 0
+
+        if response is None:
+            return default_gid
+
+        if 'gidNumber' not in response:
+            return default_gid
+
+        if response['gidNumber'] is None:
+            return default_gid
+
+        return response['gidNumber'][0]
 
     def ldap_get_homedir(self):
-        response= self.ldap_get_attribute(['homeDirectory'])
-        homeDir = response['homeDirectory']
-        if homeDir == None:
-            return ""
-        else:
-            return homeDir[0]
+        response = self.ldap_get_attribute(['homeDirectory'])
+        default_home_dir = ""
 
-#    @property
-#    def host_homedir(self):
-#        """
-#        Path to the volume containing the user's home directory on the host.
-#        Looked up from `pwd` if an empty format string or `None` has been specified.
-#        """
-#        if (
-#            self.host_homedir_format_string is not None
-#            and self.host_homedir_format_string != ""
-#        ):
-#            homedir = self.host_homedir_format_string.format(username=self.user.name)
-#        else:
-#            #import pwd
-#
-#            #homedir = pwd.getpwnam(self.user.name).pw_dir
-#            homedir = ldap_get_home_dir()
-#        return homedir
+        if response is None:
+            return default_home_dir
 
-#    @property
-#    def homedir(self):
-#        """
-#        Path to the user's home directory in the docker image.
-#        """
-#        return self.image_homedir_format_string.format(username=self.user.name)
+        if 'homeDirectory' not in response:
+            return default_home_dir
+
+        if response['homeDirectory'] is None:
+            return default_home_dir
+
+        return response['homeDirectory'][0]
 
     async def poll(self):
         """Check for my id in `docker ps`"""
@@ -336,14 +302,15 @@ class UniversitySwarmSpawner(DockerSpawner):
 
         service_state = service["Status"]
         self.log.debug(
-            "Service %s status: %s", self.service_id[:7], pformat(service_state)
+            "Service %s status: %s",
+            self.service_id[:7],
+            pformat(service_state)
         )
 
-        if service_state["State"] in {"running", "starting", "pending", "preparing"}:
+        if service_state["State"] in DOCKER_SERVICE_STATES_NO_LOG:
             return None
 
-        else:
-            return pformat(service_state)
+        return pformat(service_state)
 
     async def get_task(self):
         self.log.debug("Getting task of service '%s'", self.service_name)
@@ -353,7 +320,8 @@ class UniversitySwarmSpawner(DockerSpawner):
         try:
             tasks = await self.docker(
                 "tasks",
-                filters={"service": self.service_name, "desired-state": "running"},
+                filters={"service": self.service_name,
+                         "desired-state": DOCKER_STATE_DESIRED},
             )
             if len(tasks) == 0:
                 tasks = await self.docker(
@@ -373,7 +341,8 @@ class UniversitySwarmSpawner(DockerSpawner):
             task = tasks[0]
         except APIError as e:
             if e.response.status_code == 404:
-                self.log.info("Task for service '%s' is gone", self.service_name)
+                self.log.info("Task for service '%s' is gone",
+                              self.service_name)
                 task = None
             else:
                 raise
@@ -588,4 +557,3 @@ class UniversitySwarmSpawner(DockerSpawner):
         the system users are not on the Hub system (i.e. Hub itself is in a container).
         """
         return self.ldap_get_homedir()
-
