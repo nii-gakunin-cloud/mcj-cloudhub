@@ -961,7 +961,7 @@ def create_home_hook(spawner, auth_state):
             return
 
         if univ_role is None or univ_role not in EXPECTED_ROLES:
-            logger.error("invalid univ_role user:{moodle_username} value:{univ_role}")
+            logger.error(f"invalid univ_role user:{moodle_username} value:{univ_role}")
             return
 
         if univ_role == 'Instructor':
