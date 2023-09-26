@@ -633,11 +633,11 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
                 if os.path.exists(course_config_file):
                     os.remove(course_config_file)
 
-                dbpath = f'sqlite:///{user_home}/nbgrader/{shortname}/gradebook.db'
-                course_root = f"c.CourseDirectory.root = '{course_path}'"
+                dbpath = f'sqlite:////home/{username}/nbgrader/{shortname}/gradebook.db'
+                course_root = f"c.CourseDirectory.root = '/home/{username}/nbgrader/{shortname}'"
                 db_url = f"c.CourseDirectory.db_url = '{dbpath}'"
                 logfile_path = \
-                    f"c.NbGrader.logfile = '{instructor_root_path}/nbgrader.log'"
+                    f"c.NbGrader.logfile = '/home/{username}/nbgrader.log'"
 
                 fp1 = open(config_template_file, 'r', encoding='utf-8')
                 fp2 = open(course_config_file, 'w',  encoding='utf-8')
