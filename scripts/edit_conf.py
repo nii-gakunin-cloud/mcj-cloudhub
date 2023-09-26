@@ -57,8 +57,8 @@ def generate_edit_link(conf):
     return HTML(f'<a href={p} target="_blank">{p.name}</a>')
 
 
-def generate_edit_link_util():
-    conf = Path(WORKDIR).absolute() / 'jupyterhub_utils.py'
+def generate_edit_link_org():
+    conf = Path(WORKDIR).absolute() / 'organization_user.py'
     servers = list(notebookapp.list_running_servers())
     nb_conf = servers[0]
     p = (Path(nb_conf['base_url']) / 'edit' / 
