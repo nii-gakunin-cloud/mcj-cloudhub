@@ -841,13 +841,14 @@ def create_userdata(spawner, auth_state, username):
                 mount_volumes.append(
                     {'type': 'bind',
                      'source': share_directory_root,
-                     'target': share_directory_root,
+                     'target': '/jupytershare',
                      'mode': 'rw'})
                 logger.debug(str(mount_volumes))
 
             # Create and mount common share path.
+            local_course_path_in_container = f'/home/{moodle_username}/class/{course_shortname}'
             common_volumes = create_common_share_path(
-                ext_course_path, local_course_path, role, rootid, teachersid)
+                ext_course_path, local_course_path_in_container, role, rootid, teachersid)
 
             logger.debug(f"common_volumes = {str(common_volumes)}")
 

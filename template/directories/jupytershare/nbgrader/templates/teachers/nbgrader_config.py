@@ -1146,7 +1146,7 @@ c.Exchange.path_includes_course = True
 
 ## The nbgrader exchange directory writable to everyone. MUST be preexisting.
 #  Default: '/srv/nbgrader/exchange'
-c.Exchange.root = '{{share_directory_root}}/nbgrader/exchange'
+c.Exchange.root = '/jupytershare/nbgrader/exchange'
 
 ## Format string for timestamps
 #  Default: '%Y-%m-%d %H:%M:%S.%f %Z'

@@ -5,7 +5,7 @@ import sys
 
 if os.environ.get('MOODLECOURSE'):
     if os.environ.get('COURSEROLE') != None:
-        c.Exchange.root = '{{share_directory_root}}/nbgrader/exchange'
+        c.Exchange.root = '/jupytershare/nbgrader/exchange'
         c.Exchange.timestamp_format = '%Y-%m-%d %H:%M:%S %Z'
         c.Exchange.timezone = 'JST'
         c.ExchangeCollect.timestamp_format = '%Y-%m-%d %H:%M:%S %Z'
