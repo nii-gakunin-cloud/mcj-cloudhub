@@ -17,6 +17,7 @@ import pymysql.cursors
 LOG_FORMAT = "[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s"
 DIR_NAME_TEMPLATE_TEACHER = 'teachers'
 DIR_NAME_TEMPLATE_STUDENT = 'students'
+CONTEXTLEVEL_COURSE = 50
 
 # logger setting
 logger = logging.getLogger()
@@ -415,7 +416,7 @@ def get_course_students(shortname):
             roleid = row['id']
 
         # コースIDの値を取得
-        cur.execute(f"select id from mdl_course where shortname='{shortname}'")
+        cur.execute("select id from mdl_course where shortname=%s", [shortname])
         rows = cur.fetchall()
         for row in rows:
             courseid = int(row['id'])
@@ -425,7 +426,7 @@ def get_course_students(shortname):
 
         # コースコンテキストの値を取得
         cur.execute(
-            f"select id from mdl_context where instanceid='{str(courseid)}' and contextlevel=50")
+            "select id from mdl_context where instanceid=%s and contextlevel=%s", [courseid, CONTEXTLEVEL_COURSE])
         rows = cur.fetchall()
         for row in rows:
             contextid = int(row['id'])
@@ -433,7 +434,7 @@ def get_course_students(shortname):
         if contextid <= 0:
             return active_student_list
 
-        cur.execute(f"""
+        cur.execute("""
                     select
                         u.id,
                         u.username,
@@ -443,13 +444,13 @@ def get_course_students(shortname):
                     from
                         (select userid
                         from mdl_role_assignments
-                        where contextid={str(contextid)}
-                        and roleid={str(roleid)}
+                        where contextid=%s
+                        and roleid=%s
                         group by userid) a
                         inner join mdl_user u
                         on a.userid=u.id
                         and u.auth='ldap'
-                    """)
+                    """, [contextid, roleid])
 
         rows = cur.fetchall()
         for row in rows:
@@ -463,12 +464,12 @@ def get_course_students(shortname):
 
         enrolids = ''
 
-        cur.execute(f"""
+        cur.execute("""
                     select id
                     from mdl_enrol
-                    where courseid={str(courseid)}
+                    where courseid=%s
                     and status=0
-                    """)
+                    """, [courseid])
 
         rows = cur.fetchall()
         for row in rows:
@@ -479,14 +480,16 @@ def get_course_students(shortname):
 
         active_users = []
 
-        cur.execute(f"""
-                    select userid
-                    from mdl_user_enrolments
-                    where enrolid in ({enrolids})
-                    and status=0
-                    group by userid
-                    """)
-
+        stmt_formats = ','.join(['%s'] * len(enrolids))
+        stmt = f"""
+                select userid
+                from mdl_user_enrolments
+                where enrolid in (%s)
+                and status=0
+                group by userid
+                """
+        
+        cur.execute(stmt % stmt_formats, (enrolids))
         rows = cur.fetchall()
         for row in rows:
             active_users.append(int(row['userid']))
@@ -592,7 +595,6 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
             os.chmod(user_tree_config_file, 0o0644)
 
         if role == "Instructor":
-            # TODO: 要確認 0o0555?
             create_dir(exchange_course_path, permission=0o0755, uid=userid,
                        gid=teachersid)
             create_dir(exchange_inbound_path, permission=0o2733, uid=userid,
