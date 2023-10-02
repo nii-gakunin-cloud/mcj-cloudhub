@@ -97,6 +97,8 @@ moodle_database_dbname = '{{moodle_db_name}}'
 home_directory_root = '{{home_directory_root}}'
 share_directory_root = '{{share_directory_root}}'
 
+notebook_template_root = '{{notebook_dir}}'
+
 skelton_directory = f'{home_directory_root}/skelton'
 
 email_domain = '{{email_domain}}'
@@ -815,6 +817,13 @@ def create_userdata(spawner, auth_state, username):
                  'source': user_home_path,
                  'target': f'/home/{moodle_username}',
                  'mode': 'rw'}]
+            
+            # ldap.conf
+            mount_volumes.append(
+                    {'type': 'bind',
+                     'source': f'{notebook_template_root}/images/ldap.conf',
+                     'target': '/etc/ldap.conf',
+                     'mode': 'ro'})
 
             if role == "Instructor":
                 # Create external course top path.

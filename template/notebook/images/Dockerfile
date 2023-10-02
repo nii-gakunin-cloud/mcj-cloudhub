@@ -23,17 +23,8 @@ RUN rm -fr /usr/local/bin/start.sh && rm -fr /usr/local/bin/start-singleuser.sh
 ADD start.sh /usr/local/bin/start.sh
 ADD start-singleuser.sh /usr/local/bin/start-singleuser.sh
 RUN chmod 4755 /usr/local/bin/start.sh && chmod 4755 /usr/local/bin/start-singleuser.sh
-ENV LDAP_SEREVER "{{ldap_server}}"
-ENV LDAP_BASE_DN "{{ldap_base}}"
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq libnss-ldap libpam-ldap ldap-utils
 ADD ldap-auth-config /etc/auth-client-config/profile.d/ldap-auth-config
-RUN echo "SASL_NOCANON    off"                  > /etc/ldap.conf ;\
-    echo "BASE $LDAP_BASE_DN"                  >> /etc/ldap.conf ;\
-    echo "URI ldap://$LDAP_SEREVER/"           >> /etc/ldap.conf ;\
-    echo "ldap_version 3"                      >> /etc/ldap.conf ;\
-    echo "rootbinddn cn=Manager,$LDAP_BASE_DN" >> /etc/ldap.conf ;\
-    echo "pam_password md5"                    >> /etc/ldap.conf ;\
-    echo "nss_initgroups_ignoreusers backup,bin,daemon,games,gnats,irc,libuuid,list,lp,mail,man,news,proxy,root,sshd,sync,sys,syslog,uucp,www-data" >> /etc/ldap.conf
 RUN cp /etc/nsswitch.conf /etc/nsswitch.conf.org
 RUN sed -e "s/^passwd:.*$/passwd:         files systemd ldap/g" /etc/nsswitch.conf.org | sed -e "s/^group:.*$/group:          files systemd ldap/g" - | sed -e "s/^shadow:.*$/shadow:         files ldap/g" - > /etc/nsswitch.conf
 RUN rm -fr /etc/nsswitch.conf.org
