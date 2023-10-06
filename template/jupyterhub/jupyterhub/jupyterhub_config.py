@@ -524,9 +524,12 @@ def get_course_students(shortname):
     except pymysql.Warning as w:
         logger.warn(w)
     finally:
-        # 例外の有無に関わらずカーソルと接続を閉じる
-        cur.close()
-        conn.close()
+        try:
+            # 例外の有無に関わらずカーソルと接続を閉じる
+            cur.close()
+            conn.close()
+        except Exception:
+            pass
 
     return active_student_list
 
