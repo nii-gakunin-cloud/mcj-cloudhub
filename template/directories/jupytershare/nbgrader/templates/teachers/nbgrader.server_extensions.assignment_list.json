@@ -1,0 +1,7 @@
+{
+  "ServerApp": {
+    "jpserver_extensions": {
+      "nbgrader.server_extensions.assignment_list": true
+    }
+  }
+}

@@ -555,20 +555,38 @@ def create_dir(dir, mode=-1, uid=-1, gid=-1):
 def create_nbgrader_path(shortname, role, username, rootid, teachersid, studentsid, userid, groupid):
 
     logger.debug('Hello, create_nbgrader_path.')
-
+    
+    # directory name
+    server_extension_config_dir = 'jupyter_server_config.d'
+    lab_extension_config_dir = 'labconfig'
+    
+    # file name
+    server_extension_config_formgrader = 'nbgrader.server_extensions.formgrader.json'
+    server_extension_config_assignment_list = 'nbgrader.server_extensions.assignment_list.json'
+    lab_extensions_config = 'page_config.json'
+    
+    # directory paths for exchange files between users
     exchange_root_path = f'{share_directory_root}/nbgrader/exchange'
     exchange_course_path = f'{exchange_root_path}/{shortname}'
     exchange_inbound_path = f'{exchange_course_path}/inbound'
     exchange_outbound_path = f'{exchange_course_path}/outbound'
     exchange_feedback_path = f'{exchange_course_path}/feedback'
 
+    # directory paths for config file for each user
     user_home = f'{home_directory_root}/{username}'
     user_config_path = f'{user_home}/.jupyter'
-    user_nbconfig_path = f'{user_config_path}/nbconfig'
-    user_jupyter_config_file = \
-        f'{user_config_path}/jupyter_notebook_config.json'
-    user_notebook_config_file = f'{user_nbconfig_path}/notebook.json'
-    user_tree_config_file = f'{user_nbconfig_path}/tree.json'
+    user_labconfig_path = f'{user_config_path}/{lab_extension_config_dir}'
+    user_serverextension_config_path = f'{user_config_path}/{server_extension_config_dir}'
+    user_notebook_config_file = f'{user_labconfig_path}/page_config.json'
+    user_serverextension_config_formgrader = f'{user_serverextension_config_path}/{server_extension_config_formgrader}'
+    user_serverextension_config_assignment_list = f'{user_serverextension_config_path}/{server_extension_config_assignment_list}'
+      
+    nbgrader_template_path_base = f'{share_directory_root}/nbgrader/templates'
+    if role == ROLE_INSTRUCTOR:
+        nbgrader_template_path = f'{nbgrader_template_path_base}/{DIR_NAME_TEMPLATE_TEACHER}'
+
+    else:
+        nbgrader_template_path = f'{nbgrader_template_path_base}/{DIR_NAME_TEMPLATE_STUDENT}'
 
     # Create exchange root directory
     create_dir(exchange_root_path, mode=0o0755, uid=rootid,
@@ -578,46 +596,37 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
     create_dir(user_config_path, mode=0o0755, uid=userid,
                gid=groupid)
 
+    # Create user's serverextension config directory
+    create_dir(user_serverextension_config_path, mode=0o0755, uid=userid,
+               gid=groupid)
+
     # Create user's nbconfig directory
-    create_dir(user_nbconfig_path, mode=0o0755, uid=userid,
+    create_dir(user_labconfig_path, mode=0o0755, uid=userid,
                gid=groupid)
 
     # Remove existing jupyter notebook config file
-    if os.path.exists(user_jupyter_config_file):
-        os.remove(user_jupyter_config_file)
-
-    # Remove existing notebook config file
     if os.path.exists(user_notebook_config_file):
         os.remove(user_notebook_config_file)
 
+    # Remove existing notebook config file
+    if os.path.exists(user_serverextension_config_formgrader):
+        os.remove(user_serverextension_config_formgrader)
+
     # Remove existing tree config file
-    if os.path.exists(user_tree_config_file):
-        os.remove(user_tree_config_file)
-
-    nbgrader_template_path = f'{share_directory_root}/nbgrader/templates'
-    if role == ROLE_INSTRUCTOR:
-        nbgrader_template_path = f'{nbgrader_template_path}/{DIR_NAME_TEMPLATE_TEACHER}'
-    else:
-        nbgrader_template_path = f'{nbgrader_template_path}/{DIR_NAME_TEMPLATE_STUDENT}'
-
-    # Create user's jupyter notebook config file
-    if os.path.exists(user_config_path):
-        jupyter_template_file = nbgrader_template_path \
-            + '/jupyter_notebook_config.json'
-        shutil.copyfile(jupyter_template_file, user_jupyter_config_file)
-        os.chown(user_jupyter_config_file, userid, groupid)
-        os.chmod(user_jupyter_config_file, 0o0644)
+    if os.path.exists(user_serverextension_config_assignment_list):
+        os.remove(user_serverextension_config_assignment_list)
 
     # Create user's notebook and tree config file
-    if os.path.exists(user_nbconfig_path):
-        notebook_template_file = nbgrader_template_path + '/notebook.json'
+    if os.path.exists(user_labconfig_path):
+        notebook_template_file = f'{nbgrader_template_path}/{lab_extensions_config}'
         shutil.copyfile(notebook_template_file, user_notebook_config_file)
         os.chown(user_notebook_config_file, userid, groupid)
         os.chmod(user_notebook_config_file, 0o0644)
-        tree_template_file = nbgrader_template_path + '/tree.json'
-        shutil.copyfile(tree_template_file, user_tree_config_file)
-        os.chown(user_tree_config_file, userid, groupid)
-        os.chmod(user_tree_config_file, 0o0644)
+        
+        server_extension_config_assignment_list_template = f'{nbgrader_template_path}/{server_extension_config_assignment_list}'
+        shutil.copyfile(server_extension_config_assignment_list_template, user_serverextension_config_assignment_list)
+        os.chown(user_serverextension_config_assignment_list, userid, groupid)
+        os.chmod(user_serverextension_config_assignment_list, 0o0644)
 
     if role == ROLE_INSTRUCTOR:
         create_dir(exchange_course_path, mode=0o0755, uid=userid,
@@ -629,6 +638,11 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
         create_dir(exchange_feedback_path, mode=0o0711, uid=userid,
                     gid=studentsid)
 
+        server_extension_config_formgrader_template = f'{nbgrader_template_path}/{server_extension_config_formgrader}'
+        shutil.copyfile(server_extension_config_formgrader_template, user_serverextension_config_formgrader)
+        os.chown(user_serverextension_config_formgrader, userid, groupid)
+        os.chmod(user_serverextension_config_formgrader, 0o0644)
+        
         instructor_root_path = user_home + '/nbgrader'
         instructor_log_file = instructor_root_path + '/nbgrader.log'
         course_path = instructor_root_path + '/' + shortname
@@ -638,7 +652,7 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
         course_submitted_path = course_path + '/submitted'
         course_config_file = course_path + '/nbgrader_config.py'
         source_header_file = course_source_path + '/header.ipynb'
-
+        
         config_template_file = nbgrader_template_path + '/nbgrader_config.py'
         header_template_file = nbgrader_template_path + '/header.ipynb'
 
@@ -654,7 +668,7 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
                     gid=groupid)
         create_dir(course_submitted_path, mode=0o0755, uid=userid,
                     gid=groupid)
-
+        
         # Copy nbgrader's setting file for instructor.
         if os.path.exists(course_path):
             if os.path.exists(course_config_file):
@@ -665,52 +679,29 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
             db_url = f"c.CourseDirectory.db_url = '{dbpath}'"
             logfile_path = \
                 f"c.NbGrader.logfile = '/home/{username}/nbgrader.log'"
+            
+            # nbgrader_config.py(template)
+            with open(config_template_file, encoding="utf-8") as f1:
+                target_lines = f1.read()
 
-            fp1 = open(config_template_file, 'r', encoding='utf-8')
-            fp2 = open(course_config_file, 'w',  encoding='utf-8')
-            lines = fp1.readlines()
+            # students list
+            studentlist = get_course_students(str(shortname))
+            target_lines = target_lines.replace(
+                'c.CourseDirectory.db_students = []', f"c.CourseDirectory.db_students = {str(studentlist)}")
+            
+            # gradebook.db
+            target_lines = target_lines.replace(
+                'gb = Gradebook()', f"gb = Gradebook('{dbpath}', '{shortname}', None)")
 
-            for line in lines:
-                if 'c.CourseDirectory.db_students = []' in line:
-                    studentlist = get_course_students(str(shortname))
-                    if studentlist and len(studentlist) >= 1:
-                        fp2.write('c.CourseDirectory.db_students = [')
-                        i = 0
-                        for student in studentlist:
-                            studentstring = "    dict("
-                            studentstring = studentstring + \
-                                "id=\"" + student['id'] + "\", "
-                            studentstring = studentstring + "first_name=\"" + \
-                                student['first_name'] + "\", "
-                            studentstring = studentstring + "last_name=\"" + \
-                                student['last_name'] + "\", "
-                            studentstring = studentstring + \
-                                "email=\"" + student['email'] + "\", "
-                            studentstring = studentstring + \
-                                "lms_user_id=\"" + student['id'] + "\")"
-                            if i + 1 < len(studentlist):
-                                studentstring = studentstring + ','
-                            fp2.write(studentstring + '')
-                        fp2.write(']')
-                    else:
-                        fp2.write(line)
-                elif 'gb = Gradebook(' in line:
-                    line = 'gb = Gradebook(\'' + dbpath + \
-                        '\', \'' + shortname + '\', None)'
-                    fp2.write(line)
-                else:
-                    line = line.replace('TemplateCourse', str(shortname))
-                    line = line.replace(
-                        'c.CourseDirectory.root = \'\'', course_root)
-                    line = line.replace(
-                        'c.CourseDirectory.db_url = \'\'', db_url)
-                    line = line.replace(
-                        'c.NbGrader.logfile = \'\'', logfile_path)
-                    fp2.write(line)
+            target_lines = target_lines.replace('TemplateCourse', shortname)
+            target_lines = target_lines.replace(f"c.CourseDirectory.root = ''", course_root)
+            target_lines = target_lines.replace(f"c.CourseDirectory.db_url = ''", db_url)
+            target_lines = target_lines.replace(f"c.NbGrader.logfile = ''", logfile_path)
 
-            fp1.close()
-            fp2.close()
-
+            # nbgrader_config.py(for course)
+            with open(course_config_file, mode="w", encoding="utf-8") as f2:
+                f2.write(target_lines)
+ 
             os.chown(course_config_file, userid, groupid)
             os.chmod(course_config_file, 0o0644)
 
@@ -731,8 +722,8 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
             os.chmod(instructor_log_file, 0o0644)
 
     logger.debug('Finish, create_nbgrader_path.')
-
-
+        
+        
 def create_userdata(spawner, auth_state, username):
 
     logger.debug('Hello, create_userdata.')
@@ -834,7 +825,7 @@ def create_userdata(spawner, auth_state, username):
              'target': '/etc/ldap.conf',
              'ReadOnly': True})
 
-        if role == "Instructor":
+        if role == ROLE_INSTRUCTOR:
             # Create external course top path.
             create_dir(ext_course_path, mode=0o0775, uid=rootid,
                        gid=teachersid)
@@ -883,7 +874,6 @@ def create_userdata(spawner, auth_state, username):
 
 def pass_gen(size=12):
     chars = string.ascii_uppercase + string.ascii_lowercase + string.digits
-    # 記号を含める場合
     chars += '=+-[]!$():./*'
 
     random_pass = ''.join(secrets.choice(chars) for _ in range(size))
@@ -945,8 +935,6 @@ def validate_user_info(user_info, username):
 def create_home_hook(spawner, auth_state):
 
     logger.debug('Hello, auth_state_hook.')
-
-    spawner.success_auth_state_hook = False
 
     # if authentication information has been received safely.
     if auth_state:
@@ -1024,20 +1012,12 @@ def create_home_hook(spawner, auth_state):
             spawner.extra_container_spec['mounts'] = mount_volumes
             spawner.extra_container_spec['user'] = '0'
 
-    spawner.success_auth_state_hook = True
     logger.debug('auth_state_hook finished.')
 
 
 async def create_dir_hook(spawner):
 
     username = spawner.user.name
-
-    # auth_state_hookが失敗し中断された場合でも、spawn処理に進んでしまう件への対応
-    # https://github.com/jupyterhub/jupyterhub/issues/3134
-    if not spawner.success_auth_state_hook:
-        logger.error(f'auth_state_hook failed user:{username}')
-        raise FailedAuthStateHookException()
-
     logger.debug(f'Hello, {username}, pre_spawn_hook.')
 
     spawner.cmd = ['/usr/local/bin/start-singleuser.sh']

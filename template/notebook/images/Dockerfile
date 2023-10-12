@@ -1,10 +1,10 @@
-FROM jupyter/scipy-notebook:python-3.8.8
+FROM jupyter/scipy-notebook:lab-4.0.6
 
 LABEL Description="Jupyter Notebook on Swarm Mode for Yamaguchi University"
 
 USER root
 
-RUN apt-get update && apt-get install -y apt-utils && apt-get clean && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y apt-utils vim && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Shift timezone to Asia/Tokyo.
 RUN apt-get update && apt-get install -y tzdata && apt-get clean && rm -rf /var/lib/apt/lists/*
@@ -37,36 +37,48 @@ USER jovyan
 ADD .gitconfig /home/jovyan/.gitconfig
 RUN conda install -y conda-build
 
-RUN pip3 install jupyter_contrib_nbextensions
+#RUN pip3 install jupyter_contrib_nbextensions
 RUN pip3 install jupyter_nbextensions_configurator
 RUN pip3 install autopep8
+#RUN jupyter contrib nbextension install --sys-prefix
 
-RUN pip3 install nbgrader==0.6.1 nbconvert[webpdf] sqlalchemy==1.3.23 jinja2==3.0.3
-RUN jupyter nbextension enable --sys-prefix codefolding/main
-RUN jupyter nbextension enable --section edit codefolding/edit
-RUN jupyter nbextension enable --sys-prefix toc2/main
-RUN jupyter nbextension enable --sys-prefix code_prettify/autopep8
-RUN jupyter nbextension enable --sys-prefix limit_output/main
-RUN jupyter nbextension install --sys-prefix --py nbgrader --overwrite
-RUN jupyter nbextension enable --sys-prefix --py nbgrader
-RUN jupyter serverextension enable --sys-prefix --py nbgrader
-RUN jupyter nbextension disable --sys-prefix create_assignment/main
-RUN jupyter nbextension disable --sys-prefix formgrader/main --section=tree
-RUN jupyter serverextension disable --sys-prefix nbgrader.server_extensions.formgrader
+#RUN pip3 install nbgrader==0.9.1 nbconvert[webpdf] sqlalchemy==1.4.49 jinja2==3.0.3 requests
+RUN pip3 install nbgrader==0.9.1 sqlalchemy==1.4.49 jinja2==3.0.3
+#RUN pip3 install nbgrader==0.9.1 nbconvert[webpdf] sqlalchemy==1.4.49
+#RUN jupyter nbextension enable --sys-prefix codefolding/main
+#RUN jupyter nbextension enable --section edit codefolding/edit
+#RUN jupyter nbextension enable --sys-prefix toc2/main
+#RUN jupyter nbextension enable --sys-prefix code_prettify/autopep8
+#RUN jupyter nbextension enable --sys-prefix limit_output/main
+#RUN jupyter nbextension install --sys-prefix --py nbgrader --overwrite
+#RUN jupyter nbextension enable --sys-prefix --py nbgrader
+#RUN jupyter serverextension enable --sys-prefix --py nbgrader
+#RUN jupyter nbextension disable --sys-prefix create_assignment/main
+#RUN jupyter nbextension disable --sys-prefix formgrader/main --section=tree
+#RUN jupyter serverextension disable --sys-prefix nbgrader.server_extensions.formgrader
+RUN jupyter server extension disable nbgrader.server_extensions.formgrader
+RUN jupyter server extension disable nbgrader.server_extensions.assignment_list
+RUN jupyter server extension disable nbgrader.server_extensions.course_list
+RUN jupyter labextension disable nbgrader:formgrader
+RUN jupyter labextension disable nbgrader:assignment-list
+RUN jupyter labextension disable nbgrader:course-list
+RUN jupyter labextension disable nbgrader:create-assignment
+
 ADD convert.sh /home/jovyan/convert.sh
 RUN /home/jovyan/convert.sh && rm -fr /home/jovyan/convert.sh
 RUN conda clean --all
-RUN sed -i -e 's/check_directory(self\.root, write=True, execute=True)/check_directory(self\.root, write=False, execute=True)/' /opt/conda/lib/python3.8/site-packages/nbgrader/exchange/exchange.py
-RUN sed -i -e 's/\[ST_MODE\] \& 0o777/\[ST_MODE\] \& 0o755/' /opt/conda/lib/python3.8/site-packages/nbgrader/exchange/release_assignment.py
-RUN sed -i -e 's/perms \& 0o777/perms \& 0o755/' /opt/conda/lib/python3.8/site-packages/nbgrader/exchange/release_assignment.py
-RUN cat /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py | sed -n -e '/\#!/,/class NbGraderApp(NbGrader):/p' | sed "/class NbGraderApp(NbGrader):/d" > /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp
-RUN echo "if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith('win'):" >> /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp
-RUN echo "    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())" >> /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp
-RUN echo "" >> /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp
-RUN cat /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py | sed -n '/class NbGraderApp(NbGrader):/,$p' >> /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp
-RUN rm /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py
-RUN mv /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py.tmp /opt/conda/lib/python3.8/site-packages/nbgrader/apps/nbgraderapp.py
-RUN rm /opt/conda/lib/python3.8/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
-ADD manage_submissions.js /opt/conda/lib/python3.8/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
-RUN sed -i -e 's/return 660 if self\.coursedir\.groupshared else 640/return 664 if self\.coursedir\.groupshared else 644/g' /opt/conda/lib/python3.8/site-packages/nbgrader/converters/generate_feedback.py
-RUN pip3 install traitlets==5.9.0
+RUN sed -i -e 's/check_directory(self\.root, write=True, execute=True)/check_directory(self\.root, write=False, execute=True)/' /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exchange.py
+RUN sed -i -e 's/\[ST_MODE\] \& 0o777/\[ST_MODE\] \& 0o755/' /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py
+RUN sed -i -e 's/perms \& 0o777/perms \& 0o755/' /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py
+#RUN cat /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py | sed -n -e '/\#!/,/class NbGraderApp(NbGrader):/p' | sed "/class NbGraderApp(NbGrader):/d" > /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py.tmp
+#RUN echo "if sys.version_info[0] == 3 and sys.version_info[1] >= 8 and sys.platform.startswith('win'):" >> /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py.tmp
+#RUN echo "    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())" >> /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py.tmp
+#RUN echo "" >> /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py.tmp
+#RUN cat /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py | sed -n '/class NbGraderApp(NbGrader):/,$p' >> /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py.tmp
+#RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py
+#RUN mv /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py.tmp /opt/conda/lib/python3.11/site-packages/nbgrader/apps/nbgraderapp.py
+RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
+ADD manage_submissions.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
+RUN sed -i -e 's/return 660 if self\.coursedir\.groupshared else 640/return 664 if self\.coursedir\.groupshared else 644/g' /opt/conda/lib/python3.11/site-packages/nbgrader/converters/generate_feedback.py
+#RUN pip3 install traitlets==5.9.0
+HEALTHCHECK NONE

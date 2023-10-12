@@ -327,10 +327,13 @@ c.CourseDirectory.root = ''
 #  Default: 'submitted'
 # c.CourseDirectory.submitted_directory = 'submitted'
 
-gb = Gradebook('sqlite:///gradebook.db', 'TemplateCourse', None)
+gb = Gradebook()
 
 for student in c.CourseDirectory.db_students:
-    record = {"first_name": student['first_name'], "last_name": student['last_name'], "email": student['email'], "lms_user_id": student['id']}
+    record = {"first_name": student['first_name'],
+              "last_name": student['last_name'],
+              "email": student['email'],
+              "lms_user_id": student['id']}
     gb.update_or_create_student(student['id'], **record)
 
 #------------------------------------------------------------------------------
