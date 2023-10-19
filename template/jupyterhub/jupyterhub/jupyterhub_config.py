@@ -71,11 +71,10 @@ c.JupyterHub.activity_resolution = 30
 c.JupyterHub.named_server_limit_per_user = 1
 # Maximum number of concurrent users that can be spawning at a time.
 c.JupyterHub.concurrent_spawn_limit = 100
+# 好き勝手にPullされるのは困る気がする デフォルトNGで、ノートブックで設定可能にする？
+# c.DockerSpawner.pull_policy = 'ifnotpresent'
 
 EXPECTED_ROLES = (ROLE_INSTRUCTOR, ROLE_LEARNER)
-
-lti_consumer_key = '{{lti_consumer_key}}'
-lti_secret = '{{lti_secret}}'
 
 jupyterhub_admin_users = {{jupyterhub_admin_users}}
 jupyterhub_groupid_teachers = {{groupid_teachers}}
@@ -113,8 +112,6 @@ cpu_limit = float({{cpu_limit}})
 notebook_image = '{{singleuser_image}}'
 swarm_network = '{{swarm_network}}'
 
-logger.info(lti_consumer_key)
-logger.info(lti_secret)
 logger.info(jupyterhub_admin_users)
 logger.info(jupyterhub_groupid_teachers)
 logger.info(jupyterhub_groupid_students)
@@ -135,12 +132,23 @@ logger.info(share_directory_root)
 logger.info(skelton_directory)
 logger.info(email_domain)
 
-# Set LTI authenticator.
-c.JupyterHub.authenticator_class = 'ltiauthenticator.LTIAuthenticator'
-# Set token and secret for LTI v1.1
-c.LTI11Authenticator.consumers = {lti_consumer_key: lti_secret}
-# Do not create new user when user is authenticated.
-c.LTI11Authenticator.create_system_users = False
+# -- Set LTI authenticator --
+# lti1.3
+c.JupyterHub.authenticator_class = "ltiauthenticator.lti13.auth.LTI13Authenticator"
+
+# -- configurations for lti1.3 --
+# Define issuer identifier of the LMS platform
+c.LTI13Authenticator.issuer = '{{moodle_platform_id}}'
+# Add the LTI 1.3 configuration options
+c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
+# The platform's JWKS endpoint url providing public key sets used to verify the ID token
+c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
+# The external tool's client id as represented within the platform (LMS)
+c.LTI13Authenticator.client_id = '{{moodle_cliend_id}}'
+# default 'email'
+c.LTI13Authenticator.username_key = 'unspecify'
+# additional config for yamaguchi-hub
+c.LTI13Authenticator.username_keys = ['https://purl.imsglobal.org/spec/lti/claim/ext', 'user_username']
 
 # Set administrator users.
 c.Authenticator.admin_users = jupyterhub_admin_users
@@ -254,9 +262,9 @@ def set_user_environment_variables(spawner, auth_state, username):
         return
 
     role = get_user_role(auth_state)
-    user_home = f"{home_directory_root}/{auth_state['ext_user_username']}"
+    user_home = f"{home_directory_root}/{username}"
     spawner.environment = {
-        'MOODLECOURSE': auth_state['context_label'],
+        'MOODLECOURSE': auth_state['https://purl.imsglobal.org/spec/lti/claim/context']['label'],
         'MPLCONFIGDIR': user_home + '/.cache/matplotlib',
         'COURSEROLE': role,
         'TZ': 'Asia/Tokyo',
@@ -506,7 +514,7 @@ def get_course_students(shortname):
                 group by userid
                 """
 
-        cur.execute(stmt % stmt_formats, (enrolids))
+        cur.execute(stmt % stmt_formats, tuple(enrolids))
         rows = cur.fetchall()
         for row in rows:
             active_users.append(int(row['userid']))
@@ -722,19 +730,11 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
             os.chmod(instructor_log_file, 0o0644)
 
     logger.debug('Finish, create_nbgrader_path.')
-        
-        
-def create_userdata(spawner, auth_state, username):
+
+
+def create_userdata(spawner, auth_state, moodle_username, course_shortname):
 
     logger.debug('Hello, create_userdata.')
-
-    roles = auth_state['roles']
-    rolelist = roles.split(',')
-
-    logger.debug(str(rolelist))
-
-    course_shortname = auth_state['context_label']
-    moodle_username = auth_state['ext_user_username']
 
     ext_root_path = f'{share_directory_root}/class'
     ext_course_path = f'{ext_root_path}/{course_shortname}'
@@ -783,13 +783,13 @@ def create_userdata(spawner, auth_state, username):
             raise e
 
         rootid = rootobj[2]
-        userid = get_ldap_userid(username)
-        groupid = get_ldap_groupid(username)
+        userid = get_ldap_userid(moodle_username)
+        groupid = get_ldap_groupid(moodle_username)
 
         if userid <= 0:
             userid = rootid
 
-        groupid = get_ldap_groupid(username)
+        groupid = get_ldap_groupid(moodle_username)
 
         if userid <= 0:
             groupid = rootid
@@ -888,17 +888,20 @@ def pass_gen(size=12):
 
 
 def get_user_role(auth_state):
-    roles = auth_state['roles']
+
+    rolelist = auth_state['https://purl.imsglobal.org/spec/lti/claim/roles']
     instructor_flag = False
     learner_flag = False
-    rolelist = roles.split(',')
     role = ''
 
     # Get user's role.
     for rolename in rolelist:
-        if rolename == ROLE_INSTRUCTOR:
+        type, role = rolename.split('#')
+        if not type == 'http://purl.imsglobal.org/vocab/lis/v2/membership':
+            continue
+        if role == ROLE_INSTRUCTOR:
             instructor_flag = True
-        elif rolename == ROLE_LEARNER:
+        elif role == ROLE_LEARNER:
             learner_flag = True
 
     if not learner_flag and instructor_flag:
@@ -921,7 +924,7 @@ def validate_user_info(user_info, username):
         uidNumber = int(uidNumber)
     except ValueError:
         raise InvalidUserInfoException('uidNumber must be int')
-        
+
     if uidNumber < 0:
         raise InvalidUserInfoException('uidNumber must be greater than 0')
 
@@ -938,7 +941,9 @@ def create_home_hook(spawner, auth_state):
 
     # if authentication information has been received safely.
     if auth_state:
-        moodle_username = auth_state['ext_user_username']
+        moodle_username = auth_state['https://purl.imsglobal.org/spec/lti/claim/ext']['user_username']
+        course_shortname = auth_state['https://purl.imsglobal.org/spec/lti/claim/context']['label']
+
         homePath = f'{home_directory_root}/{moodle_username}'
 
         moodle_role = get_user_role(auth_state)
@@ -1005,7 +1010,7 @@ def create_home_hook(spawner, auth_state):
         set_user_environment_variables(spawner, auth_state, moodle_username)
 
         # Create userdata for subject.
-        mount_volumes = create_userdata(spawner, auth_state, moodle_username)
+        mount_volumes = create_userdata(spawner, auth_state, moodle_username, course_shortname)
 
         if type(mount_volumes) == list and len(mount_volumes) != 0:
             logger.debug(f'new mount_volumes = {str(mount_volumes)}')

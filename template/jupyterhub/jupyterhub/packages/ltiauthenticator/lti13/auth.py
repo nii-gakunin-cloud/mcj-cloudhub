@@ -113,6 +113,16 @@ class LTI13Authenticator(Authenticator):
         http://www.imsglobal.org/spec/lti/v1p3/#customproperty.
         """,
     )
+    
+    username_keys = TraitletsList(
+        default_value=[],
+        config=True,
+        help="""
+        For multidimensional username_key.
+        example:
+            - moodle(username): ['https://purl.imsglobal.org/spec/lti/claim/ext', 'user_username']
+        """,
+    )
 
     uri_scheme = CaselessStrEnum(
         ("auto", "https", "http"),
@@ -207,6 +217,16 @@ class LTI13Authenticator(Authenticator):
             username_key = username_key[len("custom_") :]
 
         username = data.get(username_key)
+
+        if self.username_keys:
+            import copy
+            data_p = copy.deepcopy(data)
+            data_p = data_p.get(self.username_keys[0])
+            for key in self.username_keys[1:]:
+                data_p = data_p.get(key)
+            if data_p:
+                username = data_p
+
         if not username:
             logger.warning(
                 f"Cannot find the key {username_key} in the ID token. `sub` used instread."
@@ -216,6 +236,7 @@ class LTI13Authenticator(Authenticator):
             raise LoginError(
                 f"Unable to set the username with username_key {username_key}"
             )
+
         return username
 
     def get_uri_scheme(self, request) -> str:
