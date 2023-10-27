@@ -217,10 +217,18 @@ c.UniversitySwarmSpawner.cmd = ['/usr/local/bin/start-singleuser.sh']
 c.UniversitySwarmSpawner.args = ['--allow-root']
 
 # Resource allocation restriction per user (for production server).
-c.UniversitySwarmSpawner.cpu_guarantee = cpu_guarantee
-c.UniversitySwarmSpawner.cpu_limit = cpu_limit
-c.UniversitySwarmSpawner.mem_guarantee = mem_guarantee
-c.UniversitySwarmSpawner.mem_limit = student_mem_limit
+if cpu_guarantee:
+    c.UniversitySwarmSpawner.cpu_guarantee = cpu_guarantee
+
+if mem_guarantee:
+    c.UniversitySwarmSpawner.mem_guarantee = mem_guarantee
+
+if cpu_limit:
+    c.UniversitySwarmSpawner.cpu_limit = cpu_limit
+
+if student_mem_limit
+    c.UniversitySwarmSpawner.mem_limit = student_mem_limit
+
 c.Authenticator.enable_auth_state = True
 
 
@@ -830,13 +838,12 @@ def create_userdata(spawner, auth_state, moodle_username, course_shortname):
             create_dir(ext_course_path, mode=0o0775, uid=rootid,
                        gid=teachersid)
 
+            if not os.path.exists(ext_course_path):
+                raise CreateDirectoryException(ext_course_path)
+
         # Create local course top path.
         create_dir(local_course_path, mode=0o0775, uid=rootid,
                    gid=teachersid)
-
-        # Confirm external course top path and local course top path.
-        if not os.path.exists(ext_course_path):
-            raise CreateDirectoryException(ext_course_path)
 
         if not os.path.exists(local_course_path):
             raise CreateDirectoryException(local_course_path)
