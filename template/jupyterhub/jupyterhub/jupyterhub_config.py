@@ -1,5 +1,6 @@
 import base64
 import copy
+from enum import Enum
 import hashlib
 import logging
 import os
@@ -18,10 +19,9 @@ LOG_FORMAT = '[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(m
 DIR_NAME_TEMPLATE_TEACHER = 'teachers'
 DIR_NAME_TEMPLATE_STUDENT = 'students'
 CONTEXTLEVEL_COURSE = 50
-ROLE_INSTRUCTOR = 'Instructor'
-ROLE_LEARNER = 'Learner'
+IMS_LTI_CLAIM_BASE = 'https://purl.imsglobal.org/spec/lti/claim'
 
-# logger setting
+# -- logger setting --
 logger = logging.getLogger()
 handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(logging.DEBUG)
@@ -29,52 +29,6 @@ log_formatter = logging.Formatter(LOG_FORMAT)
 handler.setFormatter(log_formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
-
-c = get_config() # noqa
-
-# The proxy is in another container
-c.ConfigurableHTTPProxy.should_start = False
-c.ConfigurableHTTPProxy.api_url = 'http://proxy:8001'
-
-# The Hub should listen on all interfaces,
-# so user servers can connect
-c.JupyterHub.hub_ip = '0.0.0.0'
-# this is the name of the 'service' in docker-compose.yml
-c.JupyterHub.hub_connect_ip = 'hub'
-# Initialize processing timeout for spawners.
-c.JupyterHub.init_spawners_timeout = 60
-# cookie max-age (days) is 90 minutes
-c.JupyterHub.cookie_max_age_days = 0.0625
-c.Authenticator.refresh_pre_spawn = True
-c.Authenticator.auth_refresh_age = 300
-
-# Shutdown active kernels (notebooks) when user logged out.
-c.JupyterHub.shutdown_on_logout = True
-# Whether to shutdown single-user servers when the Hub shuts down.
-c.JupyterHub.cleanup_servers = True
-
-# Set idle time for HTTP timeout.
-c.Spawner.http_timeout = 300
-
-# debug-logging for testing
-c.JupyterHub.log_level = logging.DEBUG
-# c.JupyterHub.log_level = logging.ERROR
-
-# Whole system resource restrictions.
-# Maximum number of concurrent servers that can be active at a time.
-c.JupyterHub.active_server_limit = 400
-# Duration (in seconds) to determine the number of active users.
-c.JupyterHub.active_user_window = 600
-# Resolution (in seconds) for updating activity
-c.JupyterHub.activity_resolution = 30
-# Maximum number of concurrent named servers that can be created by a user at a time.
-c.JupyterHub.named_server_limit_per_user = 1
-# Maximum number of concurrent users that can be spawning at a time.
-c.JupyterHub.concurrent_spawn_limit = 100
-# 好き勝手にPullされるのは困る気がする デフォルトNGで、ノートブックで設定可能にする？
-# c.DockerSpawner.pull_policy = 'ifnotpresent'
-
-EXPECTED_ROLES = (ROLE_INSTRUCTOR, ROLE_LEARNER)
 
 jupyterhub_admin_users = {{jupyterhub_admin_users}}
 jupyterhub_groupid_teachers = {{groupid_teachers}}
@@ -112,46 +66,8 @@ cpu_limit = float({{cpu_limit}})
 notebook_image = '{{singleuser_image}}'
 swarm_network = '{{swarm_network}}'
 
-logger.info(jupyterhub_admin_users)
-logger.info(jupyterhub_groupid_teachers)
-logger.info(jupyterhub_groupid_students)
-logger.info(local_ldap_server)
-logger.info(local_ldap_password)
-logger.info(local_ldap_base_dn)
-logger.info(local_ldap_manager_dn)
-logger.info(database_dbhost)
-logger.info(database_username)
-logger.info(database_password)
-logger.info(database_dbname)
-logger.info(moodle_database_dbhost)
-logger.info(moodle_database_username)
-logger.info(moodle_database_password)
-logger.info(moodle_database_dbname)
-logger.info(home_directory_root)
-logger.info(share_directory_root)
-logger.info(skelton_directory)
-logger.info(email_domain)
+c = get_config() # noqa
 
-# -- Set LTI authenticator --
-# lti1.3
-c.JupyterHub.authenticator_class = "ltiauthenticator.lti13.auth.LTI13Authenticator"
-
-# -- configurations for lti1.3 --
-# Define issuer identifier of the LMS platform
-c.LTI13Authenticator.issuer = '{{moodle_platform_id}}'
-# Add the LTI 1.3 configuration options
-c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
-# The platform's JWKS endpoint url providing public key sets used to verify the ID token
-c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
-# The external tool's client id as represented within the platform (LMS)
-c.LTI13Authenticator.client_id = '{{moodle_cliend_id}}'
-# default 'email'
-c.LTI13Authenticator.username_key = 'unspecify'
-# additional config for yamaguchi-hub
-c.LTI13Authenticator.username_keys = ['https://purl.imsglobal.org/spec/lti/claim/ext', 'user_username']
-
-# Set administrator users.
-c.Authenticator.admin_users = jupyterhub_admin_users
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     logger.warn(
@@ -160,9 +76,41 @@ if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     )
     c.CryptKeeper.keys = [os.urandom(32)]
 
-# Use auth state parameters.
-c.Authenticator.enable_auth_state = True
+# The proxy is in another container
+c.ConfigurableHTTPProxy.should_start = False
+c.ConfigurableHTTPProxy.api_url = 'http://proxy:8001'
 
+# The Hub should listen on all interfaces,
+# so user servers can connect
+c.JupyterHub.hub_ip = '0.0.0.0'
+# this is the name of the 'service' in docker-compose.yml
+c.JupyterHub.hub_connect_ip = 'hub'
+# Initialize processing timeout for spawners.
+c.JupyterHub.init_spawners_timeout = 60
+# cookie max-age (days) is 90 minutes
+c.JupyterHub.cookie_max_age_days = 0.0625
+
+# Shutdown active kernels (notebooks) when user logged out.
+c.JupyterHub.shutdown_on_logout = True
+# Whether to shutdown single-user servers when the Hub shuts down.
+c.JupyterHub.cleanup_servers = True
+
+# debug-logging for testing
+c.JupyterHub.log_level = logging.DEBUG
+
+# Whole system resource restrictions.
+# Maximum number of concurrent servers that can be active at a time.
+c.JupyterHub.active_server_limit = 400
+# Duration (in seconds) to determine the number of active users.
+c.JupyterHub.active_user_window = 600
+# Resolution (in seconds) for updating activity
+c.JupyterHub.activity_resolution = 30
+# Maximum number of concurrent named servers that can be created by a user at a time.
+c.JupyterHub.named_server_limit_per_user = 1
+# Maximum number of concurrent users that can be spawning at a time.
+c.JupyterHub.concurrent_spawn_limit = 100
+# 好き勝手にPullされるのは困る気がする デフォルトNGで、ノートブックで設定可能にする？
+# c.DockerSpawner.pull_policy = 'ifnotpresent'
 c.JupyterHub.db_kwargs = {'pool_recycle': 300}
 
 # url for the database. e.g. `sqlite:///jupyterhub.sqlite`
@@ -176,60 +124,81 @@ c.JupyterHub.db_url = 'mysql+mysqlconnector://{}:{}@{}/{}{}'.format(
     database_dbname,
     '')
 
+# -- Set LTI authenticator --
+c.JupyterHub.authenticator_class = "ltiauthenticator.lti13.auth.LTI13Authenticator"
+
+# -- configurations for authenticator --
+c.Authenticator.refresh_pre_spawn = True
+c.Authenticator.auth_refresh_age = 300
+# c.Authenticator.admin_users = jupyterhub_admin_users
+c.Authenticator.enable_auth_state = True
+
+# -- configurations for lti1.3 --
+# Define issuer identifier of the LMS platform
+c.LTI13Authenticator.issuer = '{{moodle_platform_id}}'
+# Add the LTI 1.3 configuration options
+c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
+# The platform's JWKS endpoint url providing public key sets used to verify the ID token
+c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
+# The external tool's client id as represented within the platform (LMS)
+c.LTI13Authenticator.client_id = '{{moodle_cliend_id}}'
+# default 'email'
+c.LTI13Authenticator.username_key = 'sub'
+
 # Use UniversitySwarmSpawner.
-c.JupyterHub.spawner_class = 'dockerspawner.UniversitySwarmSpawner'
-# Set home directory path.
-c.UniversitySwarmSpawner.host_homedir_format_string = \
-    home_directory_root + '/{username}'
+c.JupyterHub.spawner_class = 'dockerspawner.SysUserSwarmSpawner'
+
+# -- configurations for Spawner --
+# idle time for HTTP timeout.
+c.Spawner.http_timeout = 300
 
 # Image of Noetbook
-c.UniversitySwarmSpawner.image = notebook_image
+c.SysUserSwarmSpawner.image = notebook_image
 
 # this is the network name for jupyterhub in docker-compose.yml
 # with a leading 'swarm_' that docker-compose adds
-c.UniversitySwarmSpawner.network_name = 'swarm_jupyterhub-net'
-c.UniversitySwarmSpawner.extra_host_config = {
+c.SysUserSwarmSpawner.network_name = 'swarm_jupyterhub-net'
+c.SysUserSwarmSpawner.extra_host_config = {
     'network_mode': 'swarm_jupyterhub-net'}
-c.UniversitySwarmSpawner.extra_placement_spec = {
+c.SysUserSwarmSpawner.extra_placement_spec = {
     'constraints': ['node.role == worker']}
 
-c.UniversitySwarmSpawner.debug = True
+c.SysUserSwarmSpawner.debug = True
 
-# increase launch timeout because initial image pulls can take a while
-c.UniversitySwarmSpawner.start_timeout = 300
+# launch timeout
+c.SysUserSwarmSpawner.start_timeout = 300
 
-c.UniversitySwarmSpawner.ldap_server = local_ldap_server
-c.UniversitySwarmSpawner.ldap_password = local_ldap_password
-c.UniversitySwarmSpawner.ldap_base_dn = local_ldap_base_dn
-c.UniversitySwarmSpawner.ldap_manager_dn = local_ldap_manager_dn
-
-c.UniversitySwarmSpawner.image_homedir_format_string = \
-    home_directory_root + '/{username}'
-
-c.DockerSpawner.remove_containers = True
-c.DockerSpawner.remove = True
-
-c.Spawner.escape = 'legacy'
+c.SysUserSwarmSpawner.ldap_server = local_ldap_server
+c.SysUserSwarmSpawner.ldap_password = local_ldap_password
+c.SysUserSwarmSpawner.ldap_base_dn = local_ldap_base_dn
+c.SysUserSwarmSpawner.ldap_manager_dn = local_ldap_manager_dn
 
 # Start jupyterlab.
 # Start jupyter notebook for single user.
-c.UniversitySwarmSpawner.cmd = ['/usr/local/bin/start-singleuser.sh']
-c.UniversitySwarmSpawner.args = ['--allow-root']
+c.SysUserSwarmSpawner.cmd = ['/usr/local/bin/start-singleuser.sh']
+c.SysUserSwarmSpawner.args = ['--allow-root']
 
 # Resource allocation restriction per user (for production server).
 if cpu_guarantee:
-    c.UniversitySwarmSpawner.cpu_guarantee = cpu_guarantee
+    c.SysUserSwarmSpawner.cpu_guarantee = cpu_guarantee
 
 if mem_guarantee:
-    c.UniversitySwarmSpawner.mem_guarantee = mem_guarantee
+    c.SysUserSwarmSpawner.mem_guarantee = mem_guarantee
 
 if cpu_limit:
-    c.UniversitySwarmSpawner.cpu_limit = cpu_limit
+    c.SysUserSwarmSpawner.cpu_limit = cpu_limit
 
-if student_mem_limit
-    c.UniversitySwarmSpawner.mem_limit = student_mem_limit
+if student_mem_limit:
+    c.SysUserSwarmSpawner.mem_limit = student_mem_limit
 
-c.Authenticator.enable_auth_state = True
+
+class Role(Enum):
+    INSTRUCTOR = 'Instructor'
+    LEARNER = 'Learner'
+
+    @classmethod
+    def get_values(cls) -> list:
+        return [d.value for d in cls]
 
 
 class YHException(Exception):
@@ -258,37 +227,6 @@ class FailedAuthStateHookException(YHException):
         )
 
 
-def set_user_environment_variables(spawner, auth_state, username):
-
-    if not auth_state:
-        return
-
-    if get_ldap_userid(username) <= 0:
-        return
-
-    if not spawner.user.name == username:
-        return
-
-    role = get_user_role(auth_state)
-    user_home = f"{home_directory_root}/{username}"
-    spawner.environment = {
-        'MOODLECOURSE': auth_state['https://purl.imsglobal.org/spec/lti/claim/context']['label'],
-        'MPLCONFIGDIR': user_home + '/.cache/matplotlib',
-        'COURSEROLE': role,
-        'TZ': 'Asia/Tokyo',
-        'GRANT_SUDO': 'yes',
-        'HOME': user_home,
-        'PWD': user_home,
-        'PATH': f'{user_home}/.local/bin:' +
-                f'{user_home}/bin:/usr/local/bin:/usr/local/sbin:' +
-                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin'}
-
-    if ROLE_INSTRUCTOR == role:
-        c.UniversitySwarmSpawner.mem_limit = teacher_mem_limit
-    else:
-        c.UniversitySwarmSpawner.mem_limit = student_mem_limit
-
-
 def change_owner(homePath, uid, gid):
     for root, dirs, files in os.walk(homePath):
         for d in dirs:
@@ -301,12 +239,12 @@ def change_owner(homePath, uid, gid):
 def search_local_ldap(username, attributes: list):
 
     try:
-        server = Server(c.UniversitySwarmSpawner.ldap_server, get_info=ALL)
+        server = Server(c.SysUserSwarmSpawner.ldap_server, get_info=ALL)
 
         conn = Connection(
             server,
-            c.UniversitySwarmSpawner.ldap_manager_dn,
-            password=c.UniversitySwarmSpawner.ldap_password,
+            c.SysUserSwarmSpawner.ldap_manager_dn,
+            password=c.SysUserSwarmSpawner.ldap_password,
             read_only=False,
             raise_exceptions=True)
         logger.debug('Make connection to local ldap server.')
@@ -314,7 +252,7 @@ def search_local_ldap(username, attributes: list):
         logger.debug('Successfully bind to local ldap server.')
 
         conn.search(
-            f'uid={username},{c.UniversitySwarmSpawner.ldap_base_dn}',
+            f'uid={username},{c.SysUserSwarmSpawner.ldap_base_dn}',
             '(objectClass=*)',
             attributes=attributes)
 
@@ -332,11 +270,11 @@ def search_local_ldap(username, attributes: list):
 
 def add_local_ldap(dn, object_class=None, attributes=None, controls=None):
 
-    server = Server(c.UniversitySwarmSpawner.ldap_server, get_info=ALL)
+    server = Server(c.SysUserSwarmSpawner.ldap_server, get_info=ALL)
     conn = Connection(
         server,
-        c.UniversitySwarmSpawner.ldap_manager_dn,
-        password=c.UniversitySwarmSpawner.ldap_password,
+        c.SysUserSwarmSpawner.ldap_manager_dn,
+        password=c.SysUserSwarmSpawner.ldap_password,
         read_only=False,
         raise_exceptions=True)
     logger.debug('Make connection to local ldap server.')
@@ -350,9 +288,8 @@ def add_local_ldap(dn, object_class=None, attributes=None, controls=None):
         pass
 
 
-def get_ldap_userid(username):
+def get_user_uid_num(username):
 
-    logger.debug('Hello, get_ldap_userid.')
     attr = 'uidNumber'
     uid_number = -1
 
@@ -366,12 +303,10 @@ def get_ldap_userid(username):
     logger.debug(str(search_result[0]))
     uid_number = search_result[0][attr].value
 
-    logger.debug('Finish, get_ldap_userid.')
     return uid_number
 
 
-def get_ldap_groupid(username):
-    logger.debug("Hello, get_ldap_groupid.")
+def get_user_gid_num(username):
 
     attr = 'gidNumber'
     gid_number = -1
@@ -385,11 +320,10 @@ def get_ldap_groupid(username):
     logger.debug(str(search_result[0]))
     gid_number = search_result[0][attr].value
 
-    logger.debug('Finish, get_ldap_groupid.')
     return gid_number
 
 
-def create_common_share_path(ext_course_path, local_course_path, role, rootid, teachersid):
+def create_common_share_path(ext_course_path, local_course_path, role, root_uid_num, teacher_gid_num):
 
     logger.debug('Hello, create_common_share_path.')
 
@@ -398,10 +332,10 @@ def create_common_share_path(ext_course_path, local_course_path, role, rootid, t
     mount_volumes = list()
 
     # Create
-    create_dir(ext_share_path, mode=0o0775, uid=rootid,
-               gid=teachersid)
+    create_dir(ext_share_path, mode=0o0775, uid=root_uid_num,
+               gid=teacher_gid_num)
 
-    if role == ROLE_INSTRUCTOR:
+    if role == Role.INSTRUCTOR.value:
         mount_volumes.append(
             {'type': 'bind',
              'source': ext_share_path,
@@ -568,45 +502,45 @@ def create_dir(dir, mode=-1, uid=-1, gid=-1):
         logger.debug(f'set owner {uid}:{gid} to {dir}')
 
 
-def create_nbgrader_path(shortname, role, username, rootid, teachersid, studentsid, userid, groupid):
+def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teachers_gid_num, students_gid_num, userid, groupid):
 
     logger.debug('Hello, create_nbgrader_path.')
-    
+
     # directory name
     server_extension_config_dir = 'jupyter_server_config.d'
     lab_extension_config_dir = 'labconfig'
-    
+
     # file name
     server_extension_config_formgrader = 'nbgrader.server_extensions.formgrader.json'
     server_extension_config_assignment_list = 'nbgrader.server_extensions.assignment_list.json'
     lab_extensions_config = 'page_config.json'
-    
+
     # directory paths for exchange files between users
     exchange_root_path = f'{share_directory_root}/nbgrader/exchange'
-    exchange_course_path = f'{exchange_root_path}/{shortname}'
+    exchange_course_path = f'{exchange_root_path}/{course_short_name}'
     exchange_inbound_path = f'{exchange_course_path}/inbound'
     exchange_outbound_path = f'{exchange_course_path}/outbound'
     exchange_feedback_path = f'{exchange_course_path}/feedback'
 
     # directory paths for config file for each user
-    user_home = f'{home_directory_root}/{username}'
+    user_home = f'{home_directory_root}/{user_name}'
     user_config_path = f'{user_home}/.jupyter'
     user_labconfig_path = f'{user_config_path}/{lab_extension_config_dir}'
     user_serverextension_config_path = f'{user_config_path}/{server_extension_config_dir}'
     user_notebook_config_file = f'{user_labconfig_path}/page_config.json'
     user_serverextension_config_formgrader = f'{user_serverextension_config_path}/{server_extension_config_formgrader}'
     user_serverextension_config_assignment_list = f'{user_serverextension_config_path}/{server_extension_config_assignment_list}'
-      
+
     nbgrader_template_path_base = f'{share_directory_root}/nbgrader/templates'
-    if role == ROLE_INSTRUCTOR:
+    if role == Role.INSTRUCTOR.value:
         nbgrader_template_path = f'{nbgrader_template_path_base}/{DIR_NAME_TEMPLATE_TEACHER}'
 
     else:
         nbgrader_template_path = f'{nbgrader_template_path_base}/{DIR_NAME_TEMPLATE_STUDENT}'
 
     # Create exchange root directory
-    create_dir(exchange_root_path, mode=0o0755, uid=rootid,
-               gid=teachersid)
+    create_dir(exchange_root_path, mode=0o0755, uid=root_uid_num,
+               gid=teachers_gid_num)
 
     # Create user's config directory
     create_dir(user_config_path, mode=0o0755, uid=userid,
@@ -638,44 +572,44 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
         shutil.copyfile(notebook_template_file, user_notebook_config_file)
         os.chown(user_notebook_config_file, userid, groupid)
         os.chmod(user_notebook_config_file, 0o0644)
-        
+
         server_extension_config_assignment_list_template = f'{nbgrader_template_path}/{server_extension_config_assignment_list}'
         shutil.copyfile(server_extension_config_assignment_list_template, user_serverextension_config_assignment_list)
         os.chown(user_serverextension_config_assignment_list, userid, groupid)
         os.chmod(user_serverextension_config_assignment_list, 0o0644)
 
-    if role == ROLE_INSTRUCTOR:
+    if role == Role.INSTRUCTOR.value:
         create_dir(exchange_course_path, mode=0o0755, uid=userid,
-                    gid=teachersid)
+                   gid=teachers_gid_num)
         create_dir(exchange_inbound_path, mode=0o2733, uid=userid,
-                    gid=studentsid)
+                   gid=students_gid_num)
         create_dir(exchange_outbound_path, mode=0o0755, uid=userid,
-                    gid=studentsid)
+                   gid=students_gid_num)
         create_dir(exchange_feedback_path, mode=0o0711, uid=userid,
-                    gid=studentsid)
+                   gid=students_gid_num)
 
         server_extension_config_formgrader_template = f'{nbgrader_template_path}/{server_extension_config_formgrader}'
         shutil.copyfile(server_extension_config_formgrader_template, user_serverextension_config_formgrader)
         os.chown(user_serverextension_config_formgrader, userid, groupid)
         os.chmod(user_serverextension_config_formgrader, 0o0644)
-        
+
         instructor_root_path = user_home + '/nbgrader'
         instructor_log_file = instructor_root_path + '/nbgrader.log'
-        course_path = instructor_root_path + '/' + shortname
+        course_path = instructor_root_path + '/' + course_short_name
         course_autograded_path = course_path + '/autograded'
         course_release_path = course_path + '/release'
         course_source_path = course_path + '/source'
         course_submitted_path = course_path + '/submitted'
         course_config_file = course_path + '/nbgrader_config.py'
         source_header_file = course_source_path + '/header.ipynb'
-        
+
         config_template_file = nbgrader_template_path + '/nbgrader_config.py'
         header_template_file = nbgrader_template_path + '/header.ipynb'
 
         # Create root of instructor's local directory
         create_dir(instructor_root_path, mode=-1, uid=userid,
-                    gid=teachersid)
-        create_dir(course_path, mode=-1, uid=userid, gid=teachersid)
+                    gid=teachers_gid_num)
+        create_dir(course_path, mode=-1, uid=userid, gid=teachers_gid_num)
         create_dir(course_autograded_path, mode=0o0755, uid=userid,
                     gid=groupid)
         create_dir(course_release_path, mode=0o0755, uid=userid,
@@ -684,32 +618,32 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
                     gid=groupid)
         create_dir(course_submitted_path, mode=0o0755, uid=userid,
                     gid=groupid)
-        
+
         # Copy nbgrader's setting file for instructor.
         if os.path.exists(course_path):
             if os.path.exists(course_config_file):
                 os.remove(course_config_file)
 
-            dbpath = f'sqlite:////home/{username}/nbgrader/{shortname}/gradebook.db'
-            course_root = f"c.CourseDirectory.root = '/home/{username}/nbgrader/{shortname}'"
+            dbpath = f'sqlite:////home/{user_name}/nbgrader/{course_short_name}/gradebook.db'
+            course_root = f"c.CourseDirectory.root = '/home/{user_name}/nbgrader/{course_short_name}'"
             db_url = f"c.CourseDirectory.db_url = '{dbpath}'"
             logfile_path = \
-                f"c.NbGrader.logfile = '/home/{username}/nbgrader.log'"
-            
+                f"c.NbGrader.logfile = '/home/{user_name}/nbgrader.log'"
+
             # nbgrader_config.py(template)
             with open(config_template_file, encoding="utf-8") as f1:
                 target_lines = f1.read()
 
             # students list
-            studentlist = get_course_students(str(shortname))
+            studentlist = get_course_students(str(course_short_name))
             target_lines = target_lines.replace(
                 'c.CourseDirectory.db_students = []', f"c.CourseDirectory.db_students = {str(studentlist)}")
-            
+
             # gradebook.db
             target_lines = target_lines.replace(
-                'gb = Gradebook()', f"gb = Gradebook('{dbpath}', '{shortname}', None)")
+                'gb = Gradebook()', f"gb = Gradebook('{dbpath}', '{course_short_name}', None)")
 
-            target_lines = target_lines.replace('TemplateCourse', shortname)
+            target_lines = target_lines.replace('TemplateCourse', course_short_name)
             target_lines = target_lines.replace(f"c.CourseDirectory.root = ''", course_root)
             target_lines = target_lines.replace(f"c.CourseDirectory.db_url = ''", db_url)
             target_lines = target_lines.replace(f"c.NbGrader.logfile = ''", logfile_path)
@@ -717,7 +651,7 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
             # nbgrader_config.py(for course)
             with open(course_config_file, mode="w", encoding="utf-8") as f2:
                 f2.write(target_lines)
- 
+
             os.chown(course_config_file, userid, groupid)
             os.chmod(course_config_file, 0o0644)
 
@@ -740,20 +674,17 @@ def create_nbgrader_path(shortname, role, username, rootid, teachersid, students
     logger.debug('Finish, create_nbgrader_path.')
 
 
-def create_userdata(spawner, auth_state, moodle_username, course_shortname):
+def create_userdata(spawner, moodle_username, course_shortname, moodle_role):
 
     logger.debug('Hello, create_userdata.')
 
     ext_root_path = f'{share_directory_root}/class'
     ext_course_path = f'{ext_root_path}/{course_shortname}'
-
     user_home_path = f'{home_directory_root}/{moodle_username}'
-
     local_base_path = f'{user_home_path}/class'
     local_course_path = f'{local_base_path}/{course_shortname}'
 
     mount_volumes = []
-
     change_flag = False
 
     if type(spawner.extra_container_spec) != dict \
@@ -779,31 +710,28 @@ def create_userdata(spawner, auth_state, moodle_username, course_shortname):
     # Must set volume information for user.
     if change_flag:
         try:
-            rootobj = pwd.getpwnam("root")
+            root_obj = pwd.getpwnam("root")
         except KeyError as e:
             logger.error("Could not find root in passwd.")
             raise e
         try:
-            teachersobj = grp.getgrnam("teachers")
-            studentsobj = grp.getgrnam("students")
+            teachers_obj = grp.getgrnam("teachers")
+            students_obj = grp.getgrnam("students")
         except KeyError as e:
             logger.error("Could not find teachers/students in group.")
             raise e
 
-        rootid = rootobj[2]
-        userid = get_ldap_userid(moodle_username)
-        groupid = get_ldap_groupid(moodle_username)
+        root_uid_num = root_obj[2]
+        root_gid_num = root_obj[3]
+        uid_num = get_user_uid_num(moodle_username)
+        gid_num = get_user_gid_num(moodle_username)
 
-        if userid <= 0:
-            userid = rootid
+        if uid_num <= 0:
+            uid_num = root_uid_num
+            gid_num = root_gid_num
 
-        groupid = get_ldap_groupid(moodle_username)
-
-        if userid <= 0:
-            groupid = rootid
-
-        teachersid = teachersobj[2]
-        studentsid = studentsobj[2]
+        teachers_gid_num = teachers_obj[2]
+        students_gid_num = students_obj[2]
 
         if os.path.exists(local_base_path):
             with os.scandir(local_base_path) as it:
@@ -818,8 +746,6 @@ def create_userdata(spawner, auth_state, moodle_username, course_shortname):
             create_dir(local_base_path)
             logger.debug("Local class directory was created.")
 
-        role = get_user_role(auth_state)
-
         # Create initial mount data.
         mount_volumes = [
             {'type': 'bind',
@@ -833,17 +759,17 @@ def create_userdata(spawner, auth_state, moodle_username, course_shortname):
              'target': '/etc/ldap.conf',
              'ReadOnly': True})
 
-        if role == ROLE_INSTRUCTOR:
+        if moodle_role == Role.INSTRUCTOR.value:
             # Create external course top path.
-            create_dir(ext_course_path, mode=0o0775, uid=rootid,
-                       gid=teachersid)
+            create_dir(ext_course_path, mode=0o0775, uid=root_uid_num,
+                       gid=teachers_gid_num)
 
             if not os.path.exists(ext_course_path):
                 raise CreateDirectoryException(ext_course_path)
 
         # Create local course top path.
-        create_dir(local_course_path, mode=0o0775, uid=rootid,
-                   gid=teachersid)
+        create_dir(local_course_path, mode=0o0775, uid=root_uid_num,
+                   gid=teachers_gid_num)
 
         if not os.path.exists(local_course_path):
             raise CreateDirectoryException(local_course_path)
@@ -858,7 +784,7 @@ def create_userdata(spawner, auth_state, moodle_username, course_shortname):
         # Create and mount common share path.
         local_course_path_in_container = f'/home/{moodle_username}/class/{course_shortname}'
         common_volumes = create_common_share_path(
-            ext_course_path, local_course_path_in_container, role, rootid, teachersid)
+            ext_course_path, local_course_path_in_container, moodle_role, root_uid_num, teachers_gid_num)
 
         logger.debug(f'common_volumes = {str(common_volumes)}')
 
@@ -870,8 +796,8 @@ def create_userdata(spawner, auth_state, moodle_username, course_shortname):
 
         # Create and mount nbgrader share path.
         create_nbgrader_path(
-            course_shortname, role, moodle_username,
-            rootid, teachersid, studentsid, userid, groupid)
+            course_shortname, moodle_role, moodle_username,
+            root_uid_num, teachers_gid_num, students_gid_num, uid_num, gid_num)
 
         logger.debug(f'mount_volumes = {str(mount_volumes)}')
 
@@ -896,7 +822,7 @@ def pass_gen(size=12):
 
 def get_user_role(auth_state):
 
-    rolelist = auth_state['https://purl.imsglobal.org/spec/lti/claim/roles']
+    rolelist = auth_state[f'{IMS_LTI_CLAIM_BASE}/roles']
     instructor_flag = False
     learner_flag = False
     role = ''
@@ -906,15 +832,15 @@ def get_user_role(auth_state):
         type, role = rolename.split('#')
         if not type == 'http://purl.imsglobal.org/vocab/lis/v2/membership':
             continue
-        if role == ROLE_INSTRUCTOR:
+        if role == Role.INSTRUCTOR.value:
             instructor_flag = True
-        elif role == ROLE_LEARNER:
+        elif role == Role.LEARNER.value:
             learner_flag = True
 
     if not learner_flag and instructor_flag:
-        role = ROLE_INSTRUCTOR
+        role = Role.INSTRUCTOR.value
     else:
-        role = ROLE_LEARNER
+        role = Role.LEARNER.value
 
     return role
 
@@ -922,114 +848,125 @@ def get_user_role(auth_state):
 def validate_user_info(user_info, username):
 
     try:
-        uidNumber, univ_role = user_info
+        uid_num, univ_role = user_info
     except Exception as e:
         logger.error(e)
         raise InvalidUserInfoException('get_info() must return 2 values.')
 
     try:
-        uidNumber = int(uidNumber)
+        uid_num = int(uid_num)
     except ValueError:
         raise InvalidUserInfoException('uidNumber must be int')
 
-    if uidNumber < 0:
+    if uid_num < 0:
         raise InvalidUserInfoException('uidNumber must be greater than 0')
 
-    if univ_role is None or univ_role not in EXPECTED_ROLES:
+    if univ_role is None or univ_role not in Role.get_values():
         raise InvalidUserInfoException(
             f'invalid role user:{username} value:{univ_role}')
 
-    return uidNumber, univ_role
+    return uid_num, univ_role
 
 
 def create_home_hook(spawner, auth_state):
 
     logger.debug('Hello, auth_state_hook.')
 
-    # if authentication information has been received safely.
-    if auth_state:
-        moodle_username = auth_state['https://purl.imsglobal.org/spec/lti/claim/ext']['user_username']
-        course_shortname = auth_state['https://purl.imsglobal.org/spec/lti/claim/context']['label']
+    if not auth_state:
+        return
 
-        homePath = f'{home_directory_root}/{moodle_username}'
+    moodle_username = auth_state[f'{IMS_LTI_CLAIM_BASE}/ext']['user_username']
+    course_shortname = auth_state[f'{IMS_LTI_CLAIM_BASE}/context']['label']
+    user_home = f'{home_directory_root}/{moodle_username}'
+    moodle_role = get_user_role(auth_state)
 
-        moodle_role = get_user_role(auth_state)
-        uidNumber = -1
-        univ_role = moodle_role
+    sys.path.append(os.path.dirname(__file__))
+    from organization_user import get_info
+    user_info = get_info(
+        moodle_username, moodle_role, auth_state)
 
-        sys.path.append(os.path.dirname(__file__))
-        from organization_user import get_info
-        logger.debug('start get organization user data')
+    uid_num, univ_role = validate_user_info(user_info, moodle_username)
 
-        user_info = get_info(
-            moodle_username, moodle_role, auth_state)
+    if univ_role == Role.INSTRUCTOR.value:
+        logger.debug('user is teacher in organization.')
+        gid_num = int(jupyterhub_groupid_teachers)
+        loginShell = '/bin/bash'
+    else:
+        logger.debug('user is student in organization')
+        gid_num = int(jupyterhub_groupid_students)
+        loginShell = '/sbin/nologin'
 
-        uidNumber, univ_role = validate_user_info(user_info, moodle_username)
+    search_result = search_local_ldap(moodle_username, ['uidNumber'])
 
-        logger.debug('finish get organization user data')
+    # The user is already registered in local ldap server.
+    if search_result:
+        logger.debug(f'User ({moodle_username}) exists in local ldap.')
+    else:
+        logger.debug(f'Not found user ({moodle_username}) in local ldap.')
 
-        if univ_role == ROLE_INSTRUCTOR:
-            logger.debug('user = teachers.')
-            gidNumber = int(jupyterhub_groupid_teachers)
-            loginShell = '/bin/bash'
-        else:
-            logger.debug('user = students.')
-            gidNumber = int(jupyterhub_groupid_students)
-            loginShell = '/sbin/nologin'
+        add_local_ldap(
+            f'uid={moodle_username},{c.SysUserSwarmSpawner.ldap_base_dn}',
+            ['posixAccount', 'inetOrgPerson'],
+            {'uid': moodle_username,
+                'cn': moodle_username,
+                'sn': moodle_username,
+                'uidNumber': uid_num,
+                'gidNumber': gid_num,
+                'homeDirectory': f'/home/{moodle_username}',
+                'loginShell': loginShell,
+                'userPassword': pass_gen(12),
+                'mail': f'{moodle_username}@{email_domain}'},
+        )
 
-        search_result = search_local_ldap(moodle_username, ['uidNumber'])
+        logger.debug(f'User ({moodle_username}) registered to ldap server.')
 
-        # The user is already registered in local ldap server.
-        if search_result:
-            logger.debug(f'User ({moodle_username}) already exists in local ldap.')
-        else:
-            logger.debug(f'User ({moodle_username}) does not exists.')
+    # System must create user's home directory.
+    if not os.path.isdir(user_home) \
+            and not os.path.isfile(user_home):
 
-            add_local_ldap(
-                f'uid={moodle_username},{c.UniversitySwarmSpawner.ldap_base_dn}',
-                ['posixAccount', 'inetOrgPerson'],
-                {'uid': moodle_username,
-                 'cn': moodle_username,
-                 'sn': moodle_username,
-                 'uidNumber': uidNumber,
-                 'gidNumber': gidNumber,
-                 'homeDirectory': f'/home/{moodle_username}',
-                 'loginShell': loginShell,
-                 'userPassword': pass_gen(12),
-                 'mail': f'{moodle_username}@{email_domain}'},
-            )
+        logger.debug(f'Try to create {user_home}')
+        shutil.copytree(skelton_directory, user_home)
+        if os.path.isdir(user_home):
+            logger.debug('Try to set owner permission.')
+            change_owner(user_home, uid_num, gid_num)
+    else:
+        logger.debug(f'{user_home} already exists.')
 
-            logger.debug(f'User ({moodle_username}) registered to ldap server.')
+    spawner.environment = {
+        'MOODLECOURSE': auth_state[f'{IMS_LTI_CLAIM_BASE}/context']['label'],
+        'MPLCONFIGDIR': user_home + '/.cache/matplotlib',
+        'COURSEROLE': moodle_role,
+        'TZ': 'Asia/Tokyo',
+        'GRANT_SUDO': 'yes',
+        'HOME': user_home,
+        'PWD': user_home,
+        'PATH': f'{user_home}/.local/bin:' +
+                f'{user_home}/bin:/usr/local/bin:/usr/local/sbin:' +
+                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin'}
 
-        # System must create user's home directory.
-        if not os.path.isdir(homePath) \
-                and not os.path.isfile(homePath):
+    if Role.INSTRUCTOR.value == moodle_role:
+        # spawner.mem_limit?
+        spawner.mem_limit = teacher_mem_limit
+    else:
+        spawner.mem_limit = student_mem_limit
 
-            logger.debug(f'Try to create {homePath}')
-            shutil.copytree(skelton_directory, homePath)
-            if os.path.isdir(homePath):
-                logger.debug('Try to set owner permission.')
-                change_owner(homePath, uidNumber, gidNumber)
-        else:
-            logger.debug(f'{homePath} already exists.')
+    # Create userdata for subject.
+    mount_volumes = create_userdata(
+        spawner, moodle_username, course_shortname, moodle_role)
 
-        # Set environment variables.
-        set_user_environment_variables(spawner, auth_state, moodle_username)
+    if type(mount_volumes) == list and len(mount_volumes) != 0:
+        logger.debug(f'new mount_volumes = {str(mount_volumes)}')
+        spawner.extra_container_spec['mounts'] = mount_volumes
+        spawner.extra_container_spec['user'] = '0'
 
-        # Create userdata for subject.
-        mount_volumes = create_userdata(spawner, auth_state, moodle_username, course_shortname)
-
-        if type(mount_volumes) == list and len(mount_volumes) != 0:
-            logger.debug(f'new mount_volumes = {str(mount_volumes)}')
-            spawner.extra_container_spec['mounts'] = mount_volumes
-            spawner.extra_container_spec['user'] = '0'
-
+    spawner.login_user_name = moodle_username
+    spawner.uid_number = uid_num
     logger.debug('auth_state_hook finished.')
 
 
 async def create_dir_hook(spawner):
 
-    username = spawner.user.name
+    username = spawner.login_user_name
     logger.debug(f'Hello, {username}, pre_spawn_hook.')
 
     spawner.cmd = ['/usr/local/bin/start-singleuser.sh']
@@ -1037,9 +974,28 @@ async def create_dir_hook(spawner):
 
     spawner.image_homedir_format_string = f'{home_directory_root}/{username}'
 
-    logger.debug(str(spawner.get_state()))
     logger.debug('Finish pre_spawn_hook.')
 
 
-c.UniversitySwarmSpawner.pre_spawn_hook = create_dir_hook
-c.UniversitySwarmSpawner.auth_state_hook = create_home_hook
+def post_auth_hook(lti_authenticator, handler, authentication):
+    """ An optional hook function that to do some bootstrapping work during authentication.
+
+    Args:
+        handler (tornado.web.RequestHandler): the current request handler
+        authentication (dict): User authentication data dictionary. Contains the
+            username ('name'), admin status ('admin'), and auth state dictionary ('auth_state').
+    Returns:
+        Authentication (dict):
+            The hook must always return the authentication dict
+    """
+    updated_auth_state = copy.deepcopy(authentication)
+    moodle_user_name = authentication['auth_state'][f'{IMS_LTI_CLAIM_BASE}/ext']['user_username']
+    if moodle_user_name in jupyterhub_admin_users:
+        updated_auth_state['admin'] = True
+
+    return updated_auth_state
+
+
+c.SysUserSwarmSpawner.pre_spawn_hook = create_dir_hook
+c.SysUserSwarmSpawner.auth_state_hook = create_home_hook
+c.Authenticator.post_auth_hook = post_auth_hook
