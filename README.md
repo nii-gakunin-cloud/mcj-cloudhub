@@ -8,8 +8,8 @@ VCP SDKを用いてクラウド上にJupyterHub環境を構築します。
 
 ### JupyterHubのユーザ認証について
 
-JupyterHubではユーザの認証機能としてLTI認証連携（LTI1.1）を使用します。
-現在対応しているLMSは、Moodle3.9です。
+JupyterHubではユーザの認証機能としてLTI認証連携（LTI1.3）を使用します。  
+現在連携動作確認済みのLMSは、Moodle3.9です。
 
 ### コンテナの構成について
 
@@ -23,10 +23,10 @@ JupyterHubのノードは役割に応じて以下のものに分類されます
 
 * manager
     - JupyterHub, MariaDBなどのSystemコンテナを実行するノード
-    - Docker Swarmのmanagerノードとなる
+    - Docker Swarm の managerノードとなる
 * worker
     - single-user Jupyter notebook serverを実行するノード
     - Docker Swarm の workerノードとなる
     
-JupyterHubではデータやNotebookなどをノード間で共有するためにNFSを利用します。
+JupyterHubではデータやNotebookなどをノード間で共有するためにNFSを利用します。  
 managerノードがNFSサーバの役割を兼ねる構成としています。
