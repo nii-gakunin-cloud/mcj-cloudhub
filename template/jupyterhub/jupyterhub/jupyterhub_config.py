@@ -109,8 +109,6 @@ c.JupyterHub.activity_resolution = 30
 c.JupyterHub.named_server_limit_per_user = 1
 # Maximum number of concurrent users that can be spawning at a time.
 c.JupyterHub.concurrent_spawn_limit = 100
-# 好き勝手にPullされるのは困る気がする デフォルトNGで、ノートブックで設定可能にする？
-# c.DockerSpawner.pull_policy = 'ifnotpresent'
 c.JupyterHub.db_kwargs = {'pool_recycle': 300}
 
 # url for the database. e.g. `sqlite:///jupyterhub.sqlite`
@@ -323,16 +321,24 @@ def get_user_gid_num(username):
     return gid_number
 
 
-def create_common_share_path(ext_course_path, local_course_path, role, root_uid_num, teacher_gid_num):
+def create_common_share_path(ext_course_path, local_course_path, role, root_uid_num, teacher_gid_num, user_name, uid_num):
 
     logger.debug('Hello, create_common_share_path.')
 
     ext_share_path = f'{ext_course_path}/share'
     local_share_path = f'{local_course_path}/share'
+    ext_submit_root = f'{ext_course_path}/submit'
+    local_submit_root = f'{local_course_path}/submit'
+    ext_submit_dir = f'{ext_course_path}/submit/{user_name}'
+    local_submit_dir = f'{local_course_path}/submit/{user_name}'
     mount_volumes = list()
 
     # Create
+    create_dir(ext_submit_root, mode=0o0755, uid=root_uid_num,
+               gid=teacher_gid_num) 
     create_dir(ext_share_path, mode=0o0775, uid=root_uid_num,
+               gid=teacher_gid_num)
+    create_dir(ext_submit_dir, mode=0o0770, uid=uid_num,
                gid=teacher_gid_num)
 
     if role == Role.INSTRUCTOR.value:
@@ -340,12 +346,28 @@ def create_common_share_path(ext_course_path, local_course_path, role, root_uid_
             {'type': 'bind',
              'source': ext_share_path,
              'target': local_share_path})
+
+        mount_volumes.append(
+            {'type': 'bind',
+             'source': ext_submit_root,
+             'target': local_submit_root})
     else:
         mount_volumes.append(
             {'type': 'bind',
              'source': ext_share_path,
              'target': local_share_path,
              'ReadOnly': True})
+
+    mount_volumes.append(
+        {'type': 'bind',
+         'source': ext_submit_dir,
+         'target': local_submit_dir})
+
+    mount_volumes.append(
+        {'type': 'bind',
+         'source': '/exchange/sudoers',
+         'target': '/etc/sudoers',
+         'ReadOnly': True})
 
     logger.debug(f'mount_volumes = {str(mount_volumes)}')
     logger.debug('Finish, create_common_share_path.')
@@ -784,7 +806,7 @@ def create_userdata(spawner, moodle_username, course_shortname, moodle_role):
         # Create and mount common share path.
         local_course_path_in_container = f'/home/{moodle_username}/class/{course_shortname}'
         common_volumes = create_common_share_path(
-            ext_course_path, local_course_path_in_container, moodle_role, root_uid_num, teachers_gid_num)
+            ext_course_path, local_course_path_in_container, moodle_role, root_uid_num, teachers_gid_num, moodle_username, uid_num)
 
         logger.debug(f'common_volumes = {str(common_volumes)}')
 
