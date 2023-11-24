@@ -16,6 +16,7 @@ services:
     environment:
       DOCKER_NETWORK_NAME: {{swarm_network}}
       CONFIGPROXY_AUTH_TOKEN: ABCDEFG
+      PYTHONPATH: "$${PYTHONPATH}:/etc/jupyterhub"
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:
       replicas: 1

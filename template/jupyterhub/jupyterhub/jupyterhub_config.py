@@ -15,6 +15,9 @@ from ldap3 import Server, Connection, ALL
 from ldap3.core.exceptions import LDAPNoSuchObjectResult
 import pymysql.cursors
 
+if os.path.isfile(f'{__file__}/organization_user.py'):
+    from organization_user import get_info
+
 LOG_FORMAT = '[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s'
 DIR_NAME_TEMPLATE_TEACHER = 'teachers'
 DIR_NAME_TEMPLATE_STUDENT = 'students'
@@ -902,10 +905,11 @@ def create_home_hook(spawner, auth_state):
     user_home = f'{home_directory_root}/{moodle_username}'
     moodle_role = get_user_role(auth_state)
 
-    sys.path.append(os.path.dirname(__file__))
-    from organization_user import get_info
-    user_info = get_info(
-        moodle_username, moodle_role, auth_state)
+    if os.path.isfile(f'{__file__}/organization_user.py'):
+        user_info = get_info(
+            moodle_username, moodle_role, auth_state)
+    else:
+        user_info = int(auth_state['sub']) + 1000, moodle_role
 
     uid_num, univ_role = validate_user_info(user_info, moodle_username)
 
