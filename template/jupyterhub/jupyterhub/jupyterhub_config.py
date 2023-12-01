@@ -10,19 +10,33 @@ import shutil
 import string
 import sys
 import grp
-
+import time
+import jwt
+import requests
+import urllib
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import rsa
 from ldap3 import Server, Connection, ALL
 from ldap3.core.exceptions import LDAPNoSuchObjectResult
-import pymysql.cursors
 
-if os.path.isfile(f'{__file__}/organization_user.py'):
+if os.path.isfile(f'{os.path.dirname(__file__)}/organization_user.py'):
     from organization_user import get_info
 
 LOG_FORMAT = '[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s'
 DIR_NAME_TEMPLATE_TEACHER = 'teachers'
 DIR_NAME_TEMPLATE_STUDENT = 'students'
 CONTEXTLEVEL_COURSE = 50
-IMS_LTI_CLAIM_BASE = 'https://purl.imsglobal.org/spec/lti/claim'
+IMS_LTI13_FQDN = 'purl.imsglobal.org'
+IMS_LTI_CLAIM_BASE = f'https://{IMS_LTI13_FQDN}/spec/lti/claim'
+IMS_LTI13_KEY_MEMBERSHIP = f'http://{IMS_LTI13_FQDN}/vocab/lis/v2/membership'
+IMS_LTI13_KEY_MEMBER_ROLES = f'{IMS_LTI_CLAIM_BASE}/roles'
+IMS_LTI13_KEY_MEMBER_EXT = f'{IMS_LTI_CLAIM_BASE}/ext'
+IMS_LTI13_KEY_MEMBER_CONTEXT = f'{IMS_LTI_CLAIM_BASE}/context'
+IMS_LTI13_NRPS_TOKEN_SCOPE = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/scope/contextmembership.readonly'
+IMS_LTI13_NRPS_ASSERT_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
+IMS_LTI13_KEY_NRPS = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/claim/namesroleservice'
+
 
 # -- logger setting --
 logger = logging.getLogger()
@@ -33,6 +47,7 @@ handler.setFormatter(log_formatter)
 logger.addHandler(handler)
 logger.setLevel(logging.DEBUG)
 
+jupyterhub_fqdn = '{{master_fqdn}}'
 jupyterhub_admin_users = {{jupyterhub_admin_users}}
 jupyterhub_groupid_teachers = {{groupid_teachers}}
 jupyterhub_groupid_students = {{groupid_students}}
@@ -47,10 +62,8 @@ database_username = '{{jh_db_user}}'
 database_password = '{{jh_db_password}}'
 database_dbname = '{{jh_db_name}}'
 
-moodle_database_dbhost = '{{moodle_db_host}}'
-moodle_database_username = '{{moodle_db_user}}'
-moodle_database_password = '{{moodle_db_password}}'
-moodle_database_dbname = '{{moodle_db_name}}'
+get_course_member_method = '{{get_course_member_method}}'
+lms_api_token = '{{lms_api_token}}'
 
 home_directory_root = '{{home_directory_root}}'
 share_directory_root = '{{share_directory_root}}'
@@ -112,7 +125,9 @@ c.JupyterHub.activity_resolution = 30
 c.JupyterHub.named_server_limit_per_user = 1
 # Maximum number of concurrent users that can be spawning at a time.
 c.JupyterHub.concurrent_spawn_limit = 100
-c.JupyterHub.db_kwargs = {'pool_recycle': 300}
+c.JupyterHub.db_kwargs = {
+    'pool_recycle': 300
+}
 
 # url for the database. e.g. `sqlite:///jupyterhub.sqlite`
 #  Default: 'sqlite:///jupyterhub.sqlite'
@@ -141,10 +156,12 @@ c.LTI13Authenticator.issuer = '{{moodle_platform_id}}'
 c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
 # The platform's JWKS endpoint url providing public key sets used to verify the ID token
 c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
+# The platform's endpoint url for creating access token
+c.LTI13Authenticator.token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
 # The external tool's client id as represented within the platform (LMS)
 c.LTI13Authenticator.client_id = '{{moodle_cliend_id}}'
 # default 'email'
-c.LTI13Authenticator.username_key = 'sub'
+c.LTI13Authenticator.username_key = '{{username_key}}'
 
 # Use UniversitySwarmSpawner.
 c.JupyterHub.spawner_class = 'dockerspawner.SysUserSwarmSpawner'
@@ -174,7 +191,6 @@ c.SysUserSwarmSpawner.ldap_password = local_ldap_password
 c.SysUserSwarmSpawner.ldap_base_dn = local_ldap_base_dn
 c.SysUserSwarmSpawner.ldap_manager_dn = local_ldap_manager_dn
 
-# Start jupyterlab.
 # Start jupyter notebook for single user.
 c.SysUserSwarmSpawner.cmd = ['/usr/local/bin/start-singleuser.sh']
 c.SysUserSwarmSpawner.args = ['--allow-root']
@@ -191,6 +207,8 @@ if cpu_limit:
 
 if student_mem_limit:
     c.SysUserSwarmSpawner.mem_limit = student_mem_limit
+
+nrps_token = None
 
 
 class Role(Enum):
@@ -338,7 +356,7 @@ def create_common_share_path(ext_course_path, local_course_path, role, root_uid_
 
     # Create
     create_dir(ext_submit_root, mode=0o0755, uid=root_uid_num,
-               gid=teacher_gid_num) 
+               gid=teacher_gid_num)
     create_dir(ext_share_path, mode=0o0775, uid=root_uid_num,
                gid=teacher_gid_num)
     create_dir(ext_submit_dir, mode=0o0770, uid=uid_num,
@@ -378,135 +396,80 @@ def create_common_share_path(ext_course_path, local_course_path, role, root_uid_
     return mount_volumes
 
 
-def get_course_students(shortname):
+def get_course_students_by_nrps(url, default_key='user_id'):
 
-    courseid = 0
-    active_student_list = []
-    studentlist = []
+    global nrps_token
+    if nrps_token is None:
+        nrps_token = get_nrps_token()
 
-    try:
-        # MySQL(Moodleデータベース)に接続
-        conn = pymysql.connect(
-            database=moodle_database_dbname,
-            user=moodle_database_username,
-            password=moodle_database_password,
-            host=moodle_database_dbhost,
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
+    headers = {'Authorization': f'Bearer {nrps_token}'}
+    response = requests.get(
+        url,
+        headers=headers,
+    )
+
+    if response.status_code == 401:
+        # トークンが期限切れの場合、再発行して再度リクエストを行う
+        logger.debug('LMS access token expired')
+        nrps_token = get_nrps_token()
+        headers = {'Authorization': f'Bearer {nrps_token}'}
+        response = requests.get(
+            url,
+            headers=headers,
         )
-        cur = conn.cursor()
 
-        # 学生ロールのIDを取得
-        cur.execute("select id from mdl_role where shortname='student'")
-        rows = cur.fetchall()
-        for row in rows:
-            roleid = row['id']
+    students = list()
+    for member in response.json().get('members'):
+        if not member['status'] == 'Active' or 'Learner' not in member['roles']:
+            continue
 
-        # コースIDの値を取得
-        cur.execute('select id from mdl_course where shortname=%s', [shortname])
-        rows = cur.fetchall()
-        for row in rows:
-            courseid = int(row['id'])
+        user_id = member.get('ext_user_username', member[default_key])
 
-        if courseid <= 1:
-            return active_student_list
+        students.append(
+            dict(
+                id=user_id,
+                first_name=member['given_name'],
+                last_name=member['family_name'],
+                email=member['email'],
+                lms_user_id=member['user_id']))
 
-        # コースコンテキストの値を取得
-        cur.execute(
-            """
-            select id
-            from mdl_context
-            where instanceid=%s
-            and contextlevel=%s
-            """, [courseid, CONTEXTLEVEL_COURSE])
-        rows = cur.fetchall()
-        for row in rows:
-            contextid = int(row['id'])
+    return students
 
-        if contextid <= 0:
-            return active_student_list
 
-        cur.execute("""
-                    select
-                        u.id,
-                        u.username,
-                        u.firstname,
-                        u.lastname,
-                        u.email
-                    from
-                        (select userid
-                        from mdl_role_assignments
-                        where contextid=%s
-                        and roleid=%s
-                        group by userid) a
-                        inner join mdl_user u
-                        on a.userid=u.id
-                        and u.auth='ldap'
-                    """, [contextid, roleid])
+def get_course_students_by_moodle_api(token, courseid):
 
-        rows = cur.fetchall()
-        for row in rows:
-            studentlist.append(
-                dict(id=row['id'],
-                     username=row['username'],
-                     first_name=row['firstname'],
-                     last_name=row['lastname'],
-                     email=row['email'],
-                     lms_user_id=row['username']))
+    url = f'{c.LTI13Authenticator.issuer}/webservice/rest/server.php'
+    params = {
+        'wstoken': token,
+        'wsfunction': 'core_enrol_get_enrolled_users',
+        'courseid': courseid,
+        'moodlewsrestformat': 'json',
+    }
+    headers = {
+        "content-type": "application/json"
+    }
+    params = urllib.parse.urlencode(params)
+    response = requests.get(
+        url,
+        headers=headers,
+        params=params,
+    )
 
-        enrolids = ''
+    students = list()
+    for member in response.json():
 
-        cur.execute("""
-                    select id
-                    from mdl_enrol
-                    where courseid=%s
-                    and status=0
-                    """, [courseid])
+        if not any(role['shortname'] == 'student' for role in member['roles']):
+            continue
 
-        rows = cur.fetchall()
-        for row in rows:
-            value = int(row['id'])
-            if len(enrolids) > 0:
-                enrolids = enrolids + ','
-            enrolids = enrolids + str(value)
+        students.append(
+            dict(
+                id=member['username'],
+                first_name=member['firstname'],
+                last_name=member['lastname'],
+                email=member['email'],
+                lms_user_id=member['id']))
 
-        active_users = []
-
-        stmt_formats = ','.join(['%s'] * len(enrolids))
-        stmt = """
-                select userid
-                from mdl_user_enrolments
-                where enrolid in (%s)
-                and status=0
-                group by userid
-                """
-
-        cur.execute(stmt % stmt_formats, tuple(enrolids))
-        rows = cur.fetchall()
-        for row in rows:
-            active_users.append(int(row['userid']))
-
-        for record in studentlist:
-            for studentid in active_users:
-                if record['id'] == studentid:
-                    active_student_list.append(
-                        dict(id=record['username'],
-                             first_name=record['first_name'],
-                             last_name=record['last_name'],
-                             email=record['email'],
-                             lms_user_id=record['username']))
-
-    except pymysql.Warning as w:
-        logger.warn(w)
-    finally:
-        try:
-            # 例外の有無に関わらずカーソルと接続を閉じる
-            cur.close()
-            conn.close()
-        except Exception:
-            pass
-
-    return active_student_list
+    return students
 
 
 def create_dir(dir, mode=-1, uid=-1, gid=-1):
@@ -527,7 +490,7 @@ def create_dir(dir, mode=-1, uid=-1, gid=-1):
         logger.debug(f'set owner {uid}:{gid} to {dir}')
 
 
-def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teachers_gid_num, students_gid_num, userid, groupid):
+def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teachers_gid_num, students_gid_num, userid, groupid, auth_state):
 
     logger.debug('Hello, create_nbgrader_path.')
 
@@ -633,16 +596,16 @@ def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teach
 
         # Create root of instructor's local directory
         create_dir(instructor_root_path, mode=-1, uid=userid,
-                    gid=teachers_gid_num)
+                   gid=teachers_gid_num)
         create_dir(course_path, mode=-1, uid=userid, gid=teachers_gid_num)
         create_dir(course_autograded_path, mode=0o0755, uid=userid,
-                    gid=groupid)
+                   gid=groupid)
         create_dir(course_release_path, mode=0o0755, uid=userid,
-                    gid=groupid)
+                   gid=groupid)
         create_dir(course_source_path, mode=0o2755, uid=userid,
-                    gid=groupid)
+                   gid=groupid)
         create_dir(course_submitted_path, mode=0o0755, uid=userid,
-                    gid=groupid)
+                   gid=groupid)
 
         # Copy nbgrader's setting file for instructor.
         if os.path.exists(course_path):
@@ -659,8 +622,15 @@ def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teach
             with open(config_template_file, encoding="utf-8") as f1:
                 target_lines = f1.read()
 
-            # students list
-            studentlist = get_course_students(str(course_short_name))
+            if get_course_member_method == 'moodle_api':
+                studentlist = get_course_students_by_moodle_api(lms_api_token, auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['id'])
+            elif c.LTI13Authenticator.username_key == 'email':
+                studentlist = get_course_students_by_nrps(
+                    auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url'], default_key='email')
+            else:
+                studentlist = get_course_students_by_nrps(
+                    auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url'])
+
             target_lines = target_lines.replace(
                 'c.CourseDirectory.db_students = []', f"c.CourseDirectory.db_students = {str(studentlist)}")
 
@@ -699,7 +669,7 @@ def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teach
     logger.debug('Finish, create_nbgrader_path.')
 
 
-def create_userdata(spawner, moodle_username, course_shortname, moodle_role):
+def create_userdata(spawner, moodle_username, course_shortname, moodle_role, auth_state):
 
     logger.debug('Hello, create_userdata.')
 
@@ -712,7 +682,7 @@ def create_userdata(spawner, moodle_username, course_shortname, moodle_role):
     mount_volumes = []
     change_flag = False
 
-    if type(spawner.extra_container_spec) != dict \
+    if not isinstance(spawner.extra_container_spec, dict) \
             or 'mounts' not in spawner.extra_container_spec:
         change_flag = True
     elif not spawner.extra_container_spec['mounts']:
@@ -822,7 +792,8 @@ def create_userdata(spawner, moodle_username, course_shortname, moodle_role):
         # Create and mount nbgrader share path.
         create_nbgrader_path(
             course_shortname, moodle_role, moodle_username,
-            root_uid_num, teachers_gid_num, students_gid_num, uid_num, gid_num)
+            root_uid_num, teachers_gid_num, students_gid_num, uid_num, gid_num,
+            auth_state)
 
         logger.debug(f'mount_volumes = {str(mount_volumes)}')
 
@@ -847,7 +818,7 @@ def pass_gen(size=12):
 
 def get_user_role(auth_state):
 
-    rolelist = auth_state[f'{IMS_LTI_CLAIM_BASE}/roles']
+    rolelist = auth_state[IMS_LTI13_KEY_MEMBER_ROLES]
     instructor_flag = False
     learner_flag = False
     role = ''
@@ -855,7 +826,7 @@ def get_user_role(auth_state):
     # Get user's role.
     for rolename in rolelist:
         type, role = rolename.split('#')
-        if not type == 'http://purl.imsglobal.org/vocab/lis/v2/membership':
+        if not type == IMS_LTI13_KEY_MEMBERSHIP:
             continue
         if role == Role.INSTRUCTOR.value:
             instructor_flag = True
@@ -896,16 +867,15 @@ def validate_user_info(user_info, username):
 def create_home_hook(spawner, auth_state):
 
     logger.debug('Hello, auth_state_hook.')
-
     if not auth_state:
         return
 
-    moodle_username = auth_state[f'{IMS_LTI_CLAIM_BASE}/ext']['user_username']
-    course_shortname = auth_state[f'{IMS_LTI_CLAIM_BASE}/context']['label']
+    moodle_username = auth_state[IMS_LTI13_KEY_MEMBER_EXT]['user_username']
+    course_shortname = auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['label']
     user_home = f'{home_directory_root}/{moodle_username}'
     moodle_role = get_user_role(auth_state)
 
-    if os.path.isfile(f'{__file__}/organization_user.py'):
+    if os.path.isfile(f'{os.path.dirname(__file__)}/organization_user.py'):
         user_info = get_info(
             moodle_username, moodle_role, auth_state)
     else:
@@ -959,7 +929,7 @@ def create_home_hook(spawner, auth_state):
         logger.debug(f'{user_home} already exists.')
 
     spawner.environment = {
-        'MOODLECOURSE': auth_state[f'{IMS_LTI_CLAIM_BASE}/context']['label'],
+        'MOODLECOURSE': auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['label'],
         'MPLCONFIGDIR': user_home + '/.cache/matplotlib',
         'COURSEROLE': moodle_role,
         'TZ': 'Asia/Tokyo',
@@ -971,16 +941,15 @@ def create_home_hook(spawner, auth_state):
                 '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin'}
 
     if Role.INSTRUCTOR.value == moodle_role:
-        # spawner.mem_limit?
         spawner.mem_limit = teacher_mem_limit
     else:
         spawner.mem_limit = student_mem_limit
 
     # Create userdata for subject.
     mount_volumes = create_userdata(
-        spawner, moodle_username, course_shortname, moodle_role)
+        spawner, moodle_username, course_shortname, moodle_role, auth_state)
 
-    if type(mount_volumes) == list and len(mount_volumes) != 0:
+    if isinstance(mount_volumes, list) and len(mount_volumes) != 0:
         logger.debug(f'new mount_volumes = {str(mount_volumes)}')
         spawner.extra_container_spec['mounts'] = mount_volumes
         spawner.extra_container_spec['user'] = '0'
@@ -1015,7 +984,7 @@ def post_auth_hook(lti_authenticator, handler, authentication):
             The hook must always return the authentication dict
     """
     updated_auth_state = copy.deepcopy(authentication)
-    moodle_user_name = authentication['auth_state'][f'{IMS_LTI_CLAIM_BASE}/ext']['user_username']
+    moodle_user_name = authentication['auth_state'][IMS_LTI13_KEY_MEMBER_EXT]['user_username']
     if moodle_user_name in jupyterhub_admin_users:
         updated_auth_state['admin'] = True
 
@@ -1025,3 +994,93 @@ def post_auth_hook(lti_authenticator, handler, authentication):
 c.SysUserSwarmSpawner.pre_spawn_hook = create_dir_hook
 c.SysUserSwarmSpawner.auth_state_hook = create_home_hook
 c.Authenticator.post_auth_hook = post_auth_hook
+
+
+def get_or_generate_nrps_keypair():
+
+    # 鍵が発行済みであれば、それを使う
+    if os.path.isfile(f'{os.path.dirname(__file__)}/public_key_nrps.pem') and \
+       os.path.isfile(f'{os.path.dirname(__file__)}/private_key_nrps.pem'):
+        with open(f'{os.path.dirname(__file__)}/private_key_nrps.pem', "rb") as key_file:
+            private_key = serialization.load_pem_private_key(
+                key_file.read(),
+                password=None,
+            )
+        with open(f'{os.path.dirname(__file__)}/public_key_nrps.pem', "rb") as key_file:
+            public_key = serialization.load_pem_public_key(
+                key_file.read(),
+            )
+
+    else:
+        # 鍵の生成
+        private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+
+        # 公開鍵
+        public_key = private_key.public_key()
+
+        # 鍵をファイル出力する
+        public_key_pem = public_key.public_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+        with open(f"{os.path.dirname(__file__)}/public_key_nrps.pem", "w+b") as f:
+            f.write(public_key_pem)
+
+        private_key_pem = private_key.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.TraditionalOpenSSL,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        with open(f"{os.path.dirname(__file__)}/private_key_nrps.pem", "w+b") as f:
+            f.write(private_key_pem)
+
+        os.chmod(f"{os.path.dirname(__file__)}/private_key_nrps.pem", 0o0400)
+
+    return private_key, public_key
+
+
+def get_nrps_jwt():
+
+    private_key, public_key = get_or_generate_nrps_keypair()
+    current_unix_time = int(time.time())
+    token_value = {
+        "iss": f"https://{jupyterhub_fqdn}",
+        "iat": current_unix_time,
+        "exp": current_unix_time + 60 * 60 * 24 * 100,
+        "aud": c.LTI13Authenticator.token_endpoint,
+        "sub": c.LTI13Authenticator.client_id
+    }
+    encoded_jwt = jwt.encode(
+        token_value, private_key, algorithm="RS256")
+
+    return encoded_jwt
+
+
+def get_nrps_token():
+    data = {
+        'grant_type': 'client_credentials',
+        'client_assertion_type': IMS_LTI13_NRPS_ASSERT_TYPE,
+        'client_assertion': encoded_jwt,
+        'scope': IMS_LTI13_NRPS_TOKEN_SCOPE,
+    }
+    data = urllib.parse.urlencode(data)
+    headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+    }
+
+    response = requests.post(
+        c.LTI13Authenticator.token_endpoint,
+        headers=headers,
+        data=data,
+    )
+    logger.debug(f'nrps token response {response.json()}')
+
+    return response.json()['access_token']
+
+
+# 起動時取得
+encoded_jwt = get_nrps_jwt()
