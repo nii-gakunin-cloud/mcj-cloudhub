@@ -589,10 +589,12 @@ def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teach
         course_source_path = course_path + '/source'
         course_submitted_path = course_path + '/submitted'
         course_config_file = course_path + '/nbgrader_config.py'
-        source_header_file = course_source_path + '/header.ipynb'
+        cource_header_file = course_source_path + '/header.ipynb'
+        cource_autotests_yml = course_path + '/autotests.yml'
 
-        config_template_file = nbgrader_template_path + '/nbgrader_config.py'
-        header_template_file = nbgrader_template_path + '/header.ipynb'
+        config_template_file = f'{nbgrader_template_path}/nbgrader_config.py'
+        header_template_file = f'{nbgrader_template_path}/header.ipynb'
+        autotests_yml = f'{nbgrader_template_path}/autotests.yml'
 
         # Create root of instructor's local directory
         create_dir(instructor_root_path, mode=-1, uid=userid,
@@ -652,11 +654,18 @@ def create_nbgrader_path(course_short_name, role, user_name, root_uid_num, teach
 
         # Copy header file of source file of assignment.
         if os.path.exists(course_source_path) \
-                and not os.path.exists(source_header_file):
+                and not os.path.exists(cource_header_file):
 
-            shutil.copyfile(header_template_file, source_header_file)
-            os.chown(source_header_file, userid, groupid)
-            os.chmod(source_header_file, 0o0644)
+            shutil.copyfile(header_template_file, cource_header_file)
+            os.chown(cource_header_file, userid, groupid)
+            os.chmod(cource_header_file, 0o0644)
+        
+        if os.path.exists(course_source_path) \
+                and not os.path.exists(cource_autotests_yml):
+
+            shutil.copyfile(autotests_yml, cource_autotests_yml)
+            os.chown(cource_autotests_yml, userid, groupid)
+            os.chmod(cource_autotests_yml, 0o0644)
 
         # Truncate instructor's log file
         if os.path.exists(instructor_log_file):
