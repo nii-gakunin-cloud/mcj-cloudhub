@@ -73,11 +73,11 @@ notebook_template_root = '{{notebook_dir}}'
 skelton_directory = f'{home_directory_root}/skelton'
 
 email_domain = '{{email_domain}}'
-mem_guarantee = '{{mem_guarantee}}'
+mem_guarantee = {{mem_guarantee}}
 teacher_mem_limit = '{{teacher_mem_limit}}'
 student_mem_limit = '{{student_mem_limit}}'
-cpu_guarantee = float({{cpu_guarantee}})
-cpu_limit = float({{cpu_limit}})
+cpu_guarantee = {{cpu_guarantee}}
+cpu_limit = {{cpu_limit}}
 
 notebook_image = '{{singleuser_image}}'
 swarm_network = '{{swarm_network}}'
@@ -103,8 +103,8 @@ c.JupyterHub.hub_ip = '0.0.0.0'
 c.JupyterHub.hub_connect_ip = 'hub'
 # Initialize processing timeout for spawners.
 c.JupyterHub.init_spawners_timeout = 60
-# cookie max-age (days) is 90 minutes
-c.JupyterHub.cookie_max_age_days = 0.0625
+# cookie max-age (days) is 6 hours
+c.JupyterHub.cookie_max_age_days = {{cookie_max_age_days}}
 
 # Shutdown active kernels (notebooks) when user logged out.
 c.JupyterHub.shutdown_on_logout = True
@@ -196,10 +196,10 @@ c.SysUserSwarmSpawner.cmd = ['/usr/local/bin/start-singleuser.sh']
 c.SysUserSwarmSpawner.args = ['--allow-root']
 
 # Resource allocation restriction per user (for production server).
-if cpu_guarantee:
+if cpu_guarantee is not None and cpu_guarantee > 0:
     c.SysUserSwarmSpawner.cpu_guarantee = cpu_guarantee
 
-if mem_guarantee:
+if mem_guarantee is not None and mem_guarantee > 0:
     c.SysUserSwarmSpawner.mem_guarantee = mem_guarantee
 
 if cpu_limit:
