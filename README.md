@@ -18,7 +18,7 @@ JupyterHubではユーザの認証機能としてLTI認証連携（LTI1.3）を�
 
 コンテナ構成図を以下に示します。
 
-![モジュール構成_base](images/jh-base.png)
+![モジュール構成_base](images/arch-readme.png)
 
 ### ノード構成
 
