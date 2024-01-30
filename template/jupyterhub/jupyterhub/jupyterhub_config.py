@@ -359,10 +359,11 @@ def create_common_share_path(ext_course_path, local_course_path, role, root_uid_
                gid=teacher_gid_num)
     create_dir(ext_share_path, mode=0o0775, uid=root_uid_num,
                gid=teacher_gid_num)
-    create_dir(ext_submit_dir, mode=0o0770, uid=uid_num,
-               gid=teacher_gid_num)
 
     if role == Role.INSTRUCTOR.value:
+        create_dir(ext_submit_dir, mode=0o0750, uid=uid_num,
+               gid=root_uid_num)
+
         mount_volumes.append(
             {'type': 'bind',
              'source': ext_share_path,
@@ -373,6 +374,9 @@ def create_common_share_path(ext_course_path, local_course_path, role, root_uid_
              'source': ext_submit_root,
              'target': local_submit_root})
     else:
+        create_dir(ext_submit_dir, mode=0o0750, uid=uid_num,
+               gid=teacher_gid_num)
+
         mount_volumes.append(
             {'type': 'bind',
              'source': ext_share_path,
