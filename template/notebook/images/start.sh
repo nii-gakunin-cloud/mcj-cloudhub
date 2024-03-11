@@ -53,6 +53,10 @@ if [ $(id -u) == 0 ] ; then
         cd "$newcwd"
     fi
 
+    chown $NB_USER:$NB_GID $CONDA_DIR/lib/python3.8/site-packages
+    chown $NB_USER:$NB_GID $CONDA_DIR/man/man1/
+    chown $NB_USER:$NB_GID $CONDA_DIR/bin/
+
     # Add $CONDA_DIR/bin to sudo secure_path
     sed -r "s#Defaults\s+secure_path\s*=\s*\"?([^\"]+)\"?#Defaults secure_path=\"\1:$CONDA_DIR/bin\"#" /etc/sudoers | grep secure_path > /etc/sudoers.d/path
 
