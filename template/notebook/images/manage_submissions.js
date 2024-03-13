@@ -75,8 +75,8 @@ var SubmissionUI = Backbone.View.extend({
             var utcdate = new Date(timestring);
             var localetimestamp = utcdate.getTime() - (-540 * 60 * 1000);
             var localedate = new Date(localetimestamp);
-            display_timestamp = localedate.getFullYear() + "-" + (localedate.getMonth() + 1) + "-" + localedate.getDate();
-            display_timestamp += " " + localedate.getHours() + ":" + localedate.getMinutes() + ":" + localedate.getSeconds();
+            display_timestamp = localedate.getFullYear() + "-" + (localedate.getMonth() + 1).toString().padStart(2, "0") + "-" + localedate.getDate().toString().padStart(2, "0");
+            display_timestamp += " " + localedate.getHours().toString().padStart(2, "0") + ":" + localedate.getMinutes().toString().padStart(2, "0") + ":" + localedate.getSeconds().toString().padStart(2, "0");
             display_timestamp += " JST";
         }
         this.$timestamp.attr("data-order", timestamp);        
@@ -305,6 +305,7 @@ var loadSubmissions = function () {
 
 var models = undefined;
 var views = [];
-$(window).load(function () {
+
+$(window).on('load', function () {
     loadSubmissions();
 });

@@ -6,8 +6,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - {{jupyterhub_dir}}/jupyterhub:/etc/jupyterhub
-      - {{jupyterhub_dir}}/jupyterhub/packages/ltiauthenticator:/usr/local/lib/python3.8/dist-packages/ltiauthenticator
-      - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.8/dist-packages/dockerspawner
+      - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.10/dist-packages/dockerspawner
       - /exchange:/exchange
       - /jupyter:/jupyter
     networks:
@@ -17,6 +16,7 @@ services:
     environment:
       DOCKER_NETWORK_NAME: {{swarm_network}}
       CONFIGPROXY_AUTH_TOKEN: ABCDEFG
+      PYTHONPATH: "$${PYTHONPATH}:/etc/jupyterhub"
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:
       replicas: 1

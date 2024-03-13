@@ -32,7 +32,7 @@ DOCKER_SERVICE_STATES_NO_LOG = {
 DOCKER_STATE_DESIRED = "running"
 
 
-class UniversitySwarmSpawner(DockerSpawner):
+class SysUserSwarmSpawner(DockerSpawner):
     """A Spawner for JupyterHub that runs each user's server in a separate docker service"""
 
     object_type = "service"
@@ -216,6 +216,12 @@ class UniversitySwarmSpawner(DockerSpawner):
         help=("""Password to connect to LDAP server as manager"""),
     )
 
+    login_user_name = Unicode(
+        "",
+        config=True,
+        help=("""Login user name for single-user server"""),
+    )
+
     def ldap_get_attribute(self, attrs=['uid']):
         server = Server(self.ldap_server, get_info=ALL)
         if len(self.ldap_password) > 0 and self.ldap_password != "abcd1234":
@@ -232,8 +238,8 @@ class UniversitySwarmSpawner(DockerSpawner):
         response = None
         if conn:
             self.log.info("Connect to local LDAP server.\n")
-            result = conn.search(f'uid={self.user.name},{self.ldap_base_dn}',
-                                 '(objectclass=*)',
+            result = conn.search(self.ldap_base_dn,
+                                 f'(uidNumber={self.uid_number})',
                                  attributes=attrs,
                                  )
 
@@ -350,12 +356,15 @@ class UniversitySwarmSpawner(DockerSpawner):
         return task
 
     def get_env(self):
-        env = super(UniversitySwarmSpawner, self).get_env()
+        # jupyterhub_config.pyでspawner.environmentに指定したものは、ここでセットされる
+        env = super(SysUserSwarmSpawner, self).get_env()
+
         # relies on NB_USER and NB_UID handling in jupyter/docker-stacks
+        # 以下の環境変数は、jupyterhub_config.pyでspawner.environmentに指定したものが上書きされる
         env.update(
             dict(
                 USER=self.user.name,  # deprecated
-                NB_USER=self.user.name,
+                NB_USER=self.login_user_name if self.login_user_name else self.user.name,
                 USER_ID=self.user_id,  # deprecated
                 NB_UID=self.user_id,
                 HOME=self.homedir,
