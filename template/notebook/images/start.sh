@@ -53,7 +53,7 @@ if [ $(id -u) == 0 ] ; then
         cd "$newcwd"
     fi
 
-    chown $NB_USER:$NB_GID $CONDA_DIR/lib/python3.8/site-packages
+    chown $NB_USER:$NB_GID $CONDA_DIR/lib/python3.11/site-packages
     chown $NB_USER:$NB_GID $CONDA_DIR/man/man1/
     chown $NB_USER:$NB_GID $CONDA_DIR/bin/
 
