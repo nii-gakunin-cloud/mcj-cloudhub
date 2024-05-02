@@ -1,2 +1,2 @@
 - name: build image
-  command: "docker build {{jupyterhub_image_dir}} -t jh-simple:1.0"
+  command: "docker build {{jupyterhub_image_dir}} -t {{jupyterhub_image}}"

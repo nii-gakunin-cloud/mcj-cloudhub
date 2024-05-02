@@ -1,6 +1,6 @@
-# Yamaguchi-hub
+# MCJ-CloudHub
 
-## Yamaguchi-hubとは
+## MCJ-CloudHubとは
 
 [JupyterHub](https://github.com/jupyterhub/jupyterhub) + [nbgrader](https://github.com/jupyter/nbgrader) の環境を構築するためのアプリケーションテンプレートです。
 このテンプレートは、[学認クラウドオンデマンド構築サービス](https://cloud.gakunin.jp/ocs/)を用いて構築します。
@@ -20,7 +20,7 @@
 
 ### JupyterHub・nbgraderの改修・設定
 
-Yamaguchi-hubは、以下の方針で作成しています。
+MCJ-CloudHubは、以下の方針で作成しています。
 
 - 複数コースでJupyter notebook + nbgrader 環境を同時に使用する
   
@@ -30,7 +30,7 @@ Yamaguchi-hubは、以下の方針で作成しています。
   
   JupyterHubを利用する、各コースの担当者がJupyterHub等に詳しいわけではありません。複数コースで使用する場合には各コース用の設定が必要となりますが、コース担当者にとっては大きな負担になります。
   
-  そこでYamaguchi-hubでは、コース担当者がコース用の設定を行う必要が無い仕組みになっています。  
+  そこでMCJ-CloudHubでは、コース担当者がコース用の設定を行う必要が無い仕組みになっています。  
 
 具体的には、以下の特徴があります。  
 
@@ -66,12 +66,12 @@ JupyterHubではユーザの認証機能としてLTI認証連携（LTI1.3）を�
 
 ### ライブラリの修正点等
 
-Yamaguchi-hubでは、ライブラリの改修を行っていたり、独自のディレクトリ構成をとっているため、ライブラリの標準機能で一部使用できないものがあります。
+MCJ-CloudHubでは、ライブラリの改修を行っていたり、独自のディレクトリ構成をとっているため、ライブラリの標準機能で一部使用できないものがあります。
 
 - nbgrader
   
   - quickstartが使用不可
-    quickstartによって作成されるディレクトリや設定ファイルは、Yamaguchi-Hubで設定している共通の設定により参照されないようになっているため、使用できません。
+    quickstartによって作成されるディレクトリや設定ファイルは、MCJ-CloudHubで設定している共通の設定により参照されないようになっているため、使用できません。
   
   - 日本標準時（JST）以外への対応
     日本標準時（JST）で使用することを前提としているため、変更できません。

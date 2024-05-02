@@ -1,0 +1,16 @@
+resource:
+  groups:
+    student:
+      mem_limit: 1G
+      cpu_limit: 0.5
+      mem_guarantee: 0
+      cpu_guarantee: 0
+    teacher:
+      mem_limit: 1G
+      cpu_limit: 0.5
+      mem_guarantee: 0
+      cpu_guarantee: 0
+cull_server:
+  cull_server_idle_timeout: 600
+  cull_server_max_age: 0
+  cull_server_every: 0

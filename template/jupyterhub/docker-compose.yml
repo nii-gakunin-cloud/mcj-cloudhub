@@ -1,12 +1,11 @@
 version: '3.8'
 services:
-  hub:
-    image: jh-simple:1.0
-    hostname: jupyterhub_simple
+  jupyterhub:
+    image: {{jupyterhub_image}}
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - {{jupyterhub_dir}}/jupyterhub:/etc/jupyterhub
-      - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.10/dist-packages/dockerspawner
+      # - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.10/dist-packages/dockerspawner
       - /exchange:/exchange
       - /jupyter:/jupyter
     networks:
@@ -15,15 +14,32 @@ services:
       - 80:8000
     environment:
       DOCKER_NETWORK_NAME: {{swarm_network}}
-      CONFIGPROXY_AUTH_TOKEN: ABCDEFG
-      PYTHONPATH: "$${PYTHONPATH}:/etc/jupyterhub"
+      JUPYTERHUB_FQDN: {{jupyterhub_fqdn}}
+      DB_USER: {{db_user}}
+      DB_PASSWORD: {{db_password}}
+      EMAIL_DOMAIN: {{email_domain}}
+      JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users}}"
+      CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}}
+      TEACHER_GID: {{groupid_teachers}}
+      STUDENT_GID: {{groupid_students}}
+      NB_NODE_ROLE: {{node_role}}
+      LDAP_ADMIN: {{ldap_admin}}
+      LDAP_PASSWORD: {{ldap_password}}
+      LTI_METHOD: {{get_course_member_method}}
+      LMS_API_TOKEN: {{lms_api_token}}
+      HOME_DIR_ROOT: {{home_directory_root}}
+      SHARE_DIR_ROOT: {{share_directory_root}}
+      NOTEBOOK_IMAGE: {{singleuser_image}}
+      LMS_PLATFORM_ID: {{lms_platform_id}}
+      LMS_CLIENT_ID: {{lms_cliend_id}}
+      LTI_USERNAME_KEY: {{lti_username_key}}
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:
       replicas: 1
       placement:
         constraints:
           - node.role == manager
-  proxy:
+  jupyterhub-proxy:
     image: jupyterhub/configurable-http-proxy
     networks:
       - {{swarm_network}}
@@ -31,7 +47,7 @@ services:
       - "8000:8000"
       - "8001:8001"
     environment:
-      CONFIGPROXY_AUTH_TOKEN: ABCDEFG
+      CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}}
     deploy:
       replicas: 1
       restart_policy:
@@ -39,7 +55,7 @@ services:
       placement:
         constraints:
           - node.role == manager
-  proxy-1:
+  proxy:
     image: nginx:1.24.0
     ports:
       - "443:443"
@@ -59,15 +75,12 @@ services:
           - node.role == manager
   openldap:
     image: bitnami/openldap:2.5.14
-    ports:
-      - '1389:1389'
-      - '1636:1636'
     environment:
       - LDAP_SKIP_DEFAULT_TREE=yes
       #- LDAP_ALLOW_ANON_BINDING=no
       - LDAP_ROOT=dc=jupyterhub,dc=server,dc=sample,dc=jp
-      - LDAP_ADMIN_USERNAME=Manager
-      - LDAP_ADMIN_PASSWORD=PassWordDesu
+      - LDAP_ADMIN_USERNAME={{ldap_admin}}
+      - LDAP_ADMIN_PASSWORD={{ldap_password}}
     networks:
       - {{swarm_network}}
     volumes:
@@ -84,10 +97,10 @@ services:
     ports:
       - "3306:3306"
     environment:
-      MYSQL_ROOT_PASSWORD: {{jh_db_password}}
-      MYSQL_DATABASE: {{jh_db_name}}
-      MYSQL_USER: {{jh_db_user}}
-      MYSQL_PASSWORD: {{jh_db_password}}
+      MYSQL_ROOT_PASSWORD: {{db_password}}
+      MYSQL_USER: {{db_user}}
+      MYSQL_PASSWORD: {{db_password}}
+      MYSQL_DATABASE: jupyterhub
     networks:
       - {{swarm_network}}
     deploy:

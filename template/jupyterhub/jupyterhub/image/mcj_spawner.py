@@ -24,7 +24,7 @@ from traitlets import (
     Unicode,
     Integer)
 
-from .dockerspawner import DockerSpawner
+from dockerspawner import DockerSpawner
 
 
 DOCKER_SERVICE_STATES_NO_LOG = {
@@ -224,17 +224,12 @@ class SysUserSwarmSpawner(DockerSpawner):
 
     def ldap_get_attribute(self, attrs=['uid']):
         server = Server(self.ldap_server, get_info=ALL)
-        if len(self.ldap_password) > 0 and self.ldap_password != "abcd1234":
-            conn = Connection(server,
-                              self.ldap_manager_dn,
-                              self.ldap_password,
-                              read_only=True,
-                              auto_bind=True,raise_exceptions=True)
-        else:
-            conn = Connection(server,
-                              self.ldap_manager_dn,
-                              read_only=True,
-                              auto_bind=True,raise_exceptions=True)
+        conn = Connection(server,
+                          self.ldap_manager_dn,
+                          self.ldap_password,
+                          read_only=True,
+                          auto_bind=True,
+                          raise_exceptions=True)
         response = None
         if conn:
             self.log.info("Connect to local LDAP server.\n")
@@ -245,7 +240,6 @@ class SysUserSwarmSpawner(DockerSpawner):
 
             if result:
                 response = conn.entries[0].entry_attributes_as_dict
-
             else:
                 self.log.error(f"Cannot find attribute: {attrs}\n")
             conn.unbind()
@@ -363,9 +357,9 @@ class SysUserSwarmSpawner(DockerSpawner):
         # 以下の環境変数は、jupyterhub_config.pyでspawner.environmentに指定したものが上書きされる
         env.update(
             dict(
-                USER=self.user.name,  # deprecated
+                # USER=self.user.name,  # deprecated
                 NB_USER=self.login_user_name if self.login_user_name else self.user.name,
-                USER_ID=self.user_id,  # deprecated
+                # USER_ID=self.user_id,  # deprecated
                 NB_UID=self.user_id,
                 HOME=self.homedir,
             )

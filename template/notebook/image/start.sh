@@ -1,6 +1,4 @@
 #!/bin/bash
-# Copyright (c) Jupyter Development Team.
-# Distributed under the terms of the Modified BSD License.
 
 set -e
 
@@ -53,7 +51,9 @@ if [ $(id -u) == 0 ] ; then
         cd "$newcwd"
     fi
 
-    chown $NB_USER:$NB_GID $CONDA_DIR/lib/python3.11/site-packages
+    groupadd -g $STUDENT_GID students && groupadd -g $TEACHER_GID teachers
+    PYTHON_VERSION=$(python --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)
+    chown $NB_USER:$NB_GID $CONDA_DIR/lib/python$PYTHON_VERSION/site-packages
     chown $NB_USER:$NB_GID $CONDA_DIR/man/man1/
     chown $NB_USER:$NB_GID $CONDA_DIR/bin/
 

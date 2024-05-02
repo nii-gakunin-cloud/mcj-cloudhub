@@ -1,6 +1,6 @@
 FROM jupyter/scipy-notebook:lab-4.0.6
 
-LABEL Description="Jupyter Notebook for Yamaguchi-hub"
+LABEL Description="Single-user notebook server container image for MCJ-CloudHub"
 
 USER root
 
@@ -18,7 +18,6 @@ ENV LANGUAGE ja_JP:ja
 ENV LC_ALL ja_JP.UTF-8
 
 # setup for jupyter
-RUN groupadd -g 11000 students && groupadd -g 22000 teachers
 RUN rm -fr /usr/local/bin/start.sh && rm -fr /usr/local/bin/start-singleuser.sh
 ADD start.sh /usr/local/bin/start.sh
 ADD start-singleuser.sh /usr/local/bin/start-singleuser.sh
@@ -32,11 +31,13 @@ RUN mkdir /jupytershare
 ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/bin/:/usr/sbin:/bin:/sbin:${PATH}
 ADD nbgrader_config.py /etc/jupyter/nbgrader_config.py
 RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
+ADD ldap.conf /etc/ldap.conf
+ADD convert.sh /home/jovyan/convert.sh
+RUN chmod 755 /home/jovyan/convert.sh
 
 RUN rm -rf /var/lib/apt/lists/*
 
 USER jovyan
-ADD .gitconfig /home/jovyan/.gitconfig
 
 # Localizing into Japanese for jupyter notebook gui
 RUN pip3 install jupyterlab-language-pack-ja-JP
@@ -52,13 +53,12 @@ RUN jupyter labextension disable nbgrader:course-list
 RUN jupyter labextension disable nbgrader:create-assignment
 
 # setup files for Nbgrader 
-ADD convert.sh /home/jovyan/convert.sh
 RUN /home/jovyan/convert.sh && rm -fr /home/jovyan/convert.sh
 RUN sed -i -e 's/check_directory(self\.root, write=True, execute=True)/check_directory(self\.root, write=False, execute=True)/' /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exchange.py
 RUN sed -i -e 's/\[ST_MODE\] \& 0o777/\[ST_MODE\] \& 0o755/' /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py
 RUN sed -i -e 's/perms \& 0o777/perms \& 0o755/' /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py
-RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
-ADD manage_submissions.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
+# RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
+# ADD manage_submissions.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
 RUN sed -i -e 's/return 660 if self\.coursedir\.groupshared else 640/return 664 if self\.coursedir\.groupshared else 644/g' /opt/conda/lib/python3.11/site-packages/nbgrader/converters/generate_feedback.py
 HEALTHCHECK  --interval=15s --timeout=3s --start-period=5s --retries=3 \
     CMD wget -O- --no-verbose --tries=1 http://localhost:8888${JUPYTERHUB_SERVICE_PREFIX:-/}api || exit 1
