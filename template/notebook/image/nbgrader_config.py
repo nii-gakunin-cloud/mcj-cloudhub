@@ -28,3 +28,6 @@ c.ExchangeSubmit.timestamp_format = TIMESTAMP_FORMAT
 c.ExchangeSubmit.timezone = TIMESTAMP_TIMEZONE
 c.ExecutePreprocessor.startup_timeout = 120
 c.ExecutePreprocessor.timeout = 300
+
+if os.environ.get('COURSEROLE') == 'Instructor':
+    c.CourseDirectory.root = os.environ.get('HOME') + '/nbgrader/' + os.environ.get('MOODLECOURSE')

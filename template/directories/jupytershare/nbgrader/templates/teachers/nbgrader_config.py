@@ -8,7 +8,7 @@ from nbgrader.api import Gradebook
 
 c = get_config()  # noqa
 
-NBG_STUDENTS = os.getenv('NBG_STUDENTS')
+NBG_STUDENTS = []
 COURSE_NAME_SHORT = os.environ['MOODLECOURSE']
 NBG_USER_DIR = f'/home/{getpass.getuser()}/nbgrader'
 GRADEBOOK_DB = f'sqlite:///{NBG_USER_DIR}/{COURSE_NAME_SHORT}/gradebook.db'
