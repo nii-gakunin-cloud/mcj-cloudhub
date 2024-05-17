@@ -2,17 +2,9 @@ from IPython.display import display, HTML
 from pathlib import Path
 import subprocess
 from ipaddress import IPv4Address, IPv4Network, AddressValueError
-from multiprocessing import Pool
-import requests
-import copy
 import re
-import requests
-from requests.exceptions import RequestException
 from logging import getLogger
-import time
 from inspect import currentframe, getframeinfo
-from collections import OrderedDict
-import yaml
 
 logger = getLogger(__name__)
 
@@ -174,9 +166,9 @@ def check_parameter_vc_disk_size(value, params, kwargs, frame=None, min_sz=16):
 
 
 def check_parameter_worker_nodes(value, params, kwargs):
-    if type(value) is not int or value <= 0:
+    if type(value) is not int or value < 0:
         raise CwhParameterError(
-            f'正の整数を指定してください:{value}',
+            f'0以上の整数を指定してください:{value}',
             frame=currentframe())
 
 

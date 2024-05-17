@@ -436,9 +436,9 @@ def get_course_students_by_nrps(url, default_key='user_id'):
         students.append(
             dict(
                 id=user_id,
-                first_name=member['given_name'],
-                last_name=member['family_name'],
-                email=member['email'],
+                first_name=member.get('given_name'),
+                last_name=member.get('family_name'),
+                email=member.get('email'),
                 lms_user_id=member['user_id']))
 
     return students
