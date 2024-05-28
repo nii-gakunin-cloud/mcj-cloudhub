@@ -3,7 +3,7 @@
 ## MCJ-CloudHubとは
 
 [JupyterHub](https://github.com/jupyterhub/jupyterhub) + [nbgrader](https://github.com/jupyter/nbgrader) の環境を構築するためのアプリケーションテンプレートです。
-このテンプレートは、[学認クラウドオンデマンド構築サービス](https://cloud.gakunin.jp/ocs/)を用いて構築します。
+このテンプレートは、[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)を用いて構築します。
 複数コースを同時に扱うために、JupyterHub, nbgraderに独自の改修・設定を行っています。
 
 ### 構築後の利用の流れ
@@ -71,16 +71,16 @@ MCJ-CloudHubでは、ライブラリの改修を行っていたり、独自の�
 
 - nbgrader
   
-  - quickstartが使用不可
+  - quickstartが使用不可  
     quickstartによって作成されるディレクトリや設定ファイルは、MCJ-CloudHubで設定している共通の設定により参照されないようになっているため、使用できません。
   
-  - 日本標準時（JST）以外への対応
+  - 日本標準時（JST）以外への対応  
     日本標準時（JST）で使用することを前提としているため、変更できません。
 
 ### 構成詳細
 
-OCSにおいては、Docker in Docker の構成で各コンテナが作成されます。
-まず、VM上に、アプリケーション全体の基盤となる、ベースコンテナ（これが「VCノード」の正体です）を起動します。
+[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)では、Docker in Docker の構成で各コンテナが作成されます。
+まず、VM上に、アプリケーション全体の基盤となる、ベースコンテナ＝「VCノード」を起動します。
 そして、そのベースコンテナ内に各アプリケーションコンテナを起動します。
 
 VCノード（ベースコンテナ）は役割に応じて以下のものに分類されます。
