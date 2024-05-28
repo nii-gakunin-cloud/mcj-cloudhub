@@ -10,8 +10,8 @@ services:
       - /jupyter:/jupyter
     networks:
       - {{swarm_network}}
-    ports:
-      - 80:8000
+    # ports:
+    #   - 80:8000
     environment:
       DOCKER_NETWORK_NAME: {{swarm_network}}
       JUPYTERHUB_FQDN: {{jupyterhub_fqdn}}
@@ -43,9 +43,9 @@ services:
     image: jupyterhub/configurable-http-proxy
     networks:
       - {{swarm_network}}
-    ports:
-      - "8000:8000"
-      - "8001:8001"
+    # ports:
+    #   - "8000:8000"
+    #   - "8001:8001"
     environment:
       CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}}
     deploy:
@@ -66,6 +66,7 @@ services:
       - {{certs_dir}}/privkey.pem:/etc/nginx/certs/privkey.pem
     networks:
       - {{swarm_network}}
+      - mm_network
     deploy:
       replicas: 1
       restart_policy:
@@ -94,8 +95,8 @@ services:
           - node.role == manager
   mariadb:
     image: mariadb:10.5.15
-    ports:
-      - "3306:3306"
+    # ports:
+    #   - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: {{db_password}}
       MYSQL_USER: {{db_user}}
@@ -117,3 +118,5 @@ networks:
     ipam:
       config:
         - subnet: {{jupyterhub_backend}}
+  mm_network:
+    external: true

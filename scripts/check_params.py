@@ -174,7 +174,7 @@ def check_parameter_vc_disk_size(value, params, kwargs, frame=None, min_sz=16):
 
 
 def check_parameter_worker_nodes(value, params, kwargs):
-    if type(value) is not int or value <= 0:
+    if type(value) is not int or value < 0:
         raise CwhParameterError(
             f'正の整数を指定してください:{value}',
             frame=currentframe())

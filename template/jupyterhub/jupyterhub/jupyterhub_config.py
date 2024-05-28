@@ -180,7 +180,7 @@ c.Authenticator.enable_auth_state = True
 
 # -- configurations for lti1.3 --
 # Define issuer identifier of the LMS platform
-c.LTI13Authenticator.issuer = os.getenv('LMS_PLATFORM_ID')
+c.LTI13Authenticator.issuer = os.getenv('LMS_PLATFORM_ID', 'dummy')
 # Add the LTI 1.3 configuration options
 c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
 # The platform's JWKS endpoint url providing public key sets used to verify the ID token
@@ -190,7 +190,7 @@ c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/cer
 token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
 
 # The external tool's client id as represented within the platform (LMS)
-c.LTI13Authenticator.client_id = os.getenv('LMS_CLIENT_ID')
+c.LTI13Authenticator.client_id = os.getenv('LMS_CLIENT_ID', 'dummy')
 # default 'email'
 c.LTI13Authenticator.username_key = os.getenv('LTI_USERNAME_KEY', 'email')
 
