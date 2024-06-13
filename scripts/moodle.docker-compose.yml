@@ -19,7 +19,7 @@ services:
     networks:
       - mm_network
   moodle:
-    image: docker.io/bitnami/moodle:4.4
+    image: docker.io/bitnami/moodle:4.2.7
     # ports:
     #   - '8080:8080'
      # - '443:8443'
