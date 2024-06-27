@@ -201,6 +201,7 @@ c.JupyterHub.spawner_class = SysUserSwarmSpawner
 # -- configurations for Spawner --
 # idle time for HTTP timeout.
 c.Spawner.http_timeout = 300
+c.Spawner.default_url = os.getenv('DEFAULT_URL', "/lab")
 
 # Image of Noetbook
 c.SysUserSwarmSpawner.image = os.getenv('NOTEBOOK_IMAGE')

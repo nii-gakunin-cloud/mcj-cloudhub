@@ -33,6 +33,7 @@ services:
       LMS_PLATFORM_ID: {{lms_platform_id}}
       LMS_CLIENT_ID: {{lms_cliend_id}}
       LTI_USERNAME_KEY: {{lti_username_key}}
+      DEFAULT_URL: {{default_url}}
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:
       replicas: 1
