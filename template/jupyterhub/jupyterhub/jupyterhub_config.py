@@ -81,7 +81,7 @@ c = get_config() # noqa
 c.JupyterHub.cookie_max_age_days = 0.25
 
 if config.get('cull_server') is not None:
-    cull_server_idle_timeout = config['cull_server'].get('cull_server_idle_timeout', DEFUALT_IDLE_TIMEOUT)
+    cull_server_idle_timeout = config['cull_server'].get('cull_server_timeout', DEFUALT_IDLE_TIMEOUT)
     cull_server_every = config['cull_server'].get('cull_server_every', DEFUALT_CULL_EVERY)
     cull_server_max_age = config['cull_server'].get('cull_server_max_age', DEFUALT_SERVER_MAX_AGE)
 else:
