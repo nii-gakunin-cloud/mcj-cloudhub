@@ -388,3 +388,22 @@ def _get_dest_nb_path(src_nb_path, dest_dir):
     dest_path = Path(dest_dir)
     index = len([p for p in dest_path.glob(f"{prefix}*")]) + 1
     return str(dest_path / "{}_{:0>2}_{}".format(prefix, index, src_path.name))
+
+def get_diff(p1: dict, p2: dict):
+    
+    diffs = []
+    for k, v in p1.items():
+        if k in p2:
+            if v != p2[k]:
+                # update
+                diffs.append(f"{k}: {v} -> {p2[k]}")
+        else:
+            # new
+            diffs.append(f"{k}: X -> {p2[k]} (added)")
+    
+    for k, v in p2.items():
+        if k not in p1:
+            # delete
+            diffs.append(f"{k}: X (deleted)")
+    
+    return "\n".join(diffs)
