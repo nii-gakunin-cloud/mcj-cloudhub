@@ -2,9 +2,9 @@
 
 ## MCJ-CloudHubとは
 
-[JupyterHub](https://github.com/jupyterhub/jupyterhub) + [nbgrader](https://github.com/jupyter/nbgrader) の環境を構築するためのアプリケーションテンプレートです。
-このテンプレートは、[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)を用いて構築します。
-複数コースを同時に扱うために、JupyterHub, nbgraderに独自の改修・設定を行っています。
+複数科目で共同・同時利用可能なWeb型プログラミング演習システムです。
+MCJ-CloudHubでは、Web型プログラミング演習環境として[JupyterHub](https://github.com/jupyterhub/jupyterhub)を、課題の配布・回収・採点ツールとして[nbgrader](https://github.com/jupyter/nbgrader)を採用し、複数科目で共同・同時利用可能とするために独自の改修・設定を行っています。
+ここではMCJ-CloudHubを[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)上に構築するアプリケーションテンプレートを公開しています。
 
 ### 構築後の利用の流れ
 
