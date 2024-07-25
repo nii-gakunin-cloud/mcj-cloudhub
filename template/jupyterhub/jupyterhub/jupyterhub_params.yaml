@@ -10,6 +10,7 @@ resource:
       cpu_limit: 0.5
       mem_guarantee: 0
       cpu_guarantee: 0
+cookie_max_age_days: 0.25
 cull_server:
   cull_server_timeout: 600
   cull_server_max_age: 0

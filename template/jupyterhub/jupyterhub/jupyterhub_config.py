@@ -39,6 +39,7 @@ IMS_LTI13_KEY_NRPS = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/claim/namesroleser
 DEFUALT_IDLE_TIMEOUT = 600
 DEFUALT_CULL_EVERY = 60
 DEFUALT_SERVER_MAX_AGE = 0
+DEFUALT_COOKIE_MAX_AGE_DAYS = 0.25
 
 # -- logger setting --
 logger = logging.getLogger()
@@ -78,7 +79,7 @@ with open('/etc/jupyterhub/jupyterhub_params.yaml', 'r') as yml:
 c = get_config() # noqa
 
 # cookie max-age (days) is 6 hours
-c.JupyterHub.cookie_max_age_days = 0.25
+c.JupyterHub.cookie_max_age_days = config.get('cookie_max_age_days', DEFUALT_COOKIE_MAX_AGE_DAYS)
 
 if config.get('cull_server') is not None:
     cull_server_idle_timeout = config['cull_server'].get('cull_server_timeout', DEFUALT_IDLE_TIMEOUT)

@@ -390,6 +390,12 @@ def _get_dest_nb_path(src_nb_path, dest_dir):
     return str(dest_path / "{}_{:0>2}_{}".format(prefix, index, src_path.name))
 
 def get_diff(p1: dict, p2: dict):
+    """辞書差分表示用文字列生成
+    
+    Args:
+        p1(dict): 比較（Before）
+        p2(dict): 比較（After）
+    """
     
     diffs = []
     for k, v in p1.items():
@@ -399,11 +405,11 @@ def get_diff(p1: dict, p2: dict):
                 diffs.append(f"{k}: {v} -> {p2[k]}")
         else:
             # new
-            diffs.append(f"{k}: X -> {p2[k]} (added)")
+            diffs.append(f"{k}: {p1[k]} -> X (deleted)")
     
     for k, v in p2.items():
         if k not in p1:
             # delete
-            diffs.append(f"{k}: X (deleted)")
+            diffs.append(f"{k}: X -> {p2[k]} (added)")
     
     return "\n".join(diffs)

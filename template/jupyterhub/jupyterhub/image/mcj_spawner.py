@@ -350,16 +350,12 @@ class SysUserSwarmSpawner(DockerSpawner):
         return task
 
     def get_env(self):
-        # jupyterhub_config.pyでspawner.environmentに指定したものは、ここでセットされる
+        # c.spawner.environment in jupyterhub_config.py
         env = super(SysUserSwarmSpawner, self).get_env()
 
-        # relies on NB_USER and NB_UID handling in jupyter/docker-stacks
-        # 以下の環境変数は、jupyterhub_config.pyでspawner.environmentに指定したものが上書きされる
         env.update(
             dict(
-                # USER=self.user.name,  # deprecated
                 NB_USER=self.login_user_name if self.login_user_name else self.user.name,
-                # USER_ID=self.user_id,  # deprecated
                 NB_UID=self.user_id,
                 HOME=self.homedir,
             )
