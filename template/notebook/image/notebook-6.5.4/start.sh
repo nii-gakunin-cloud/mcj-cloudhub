@@ -51,26 +51,32 @@ if [ $(id -u) == 0 ] ; then
         cd "$newcwd"
     fi
 
+    mkdir -p ~/.local/share/jupyter
+    mkdir -p ~/.jupyter
     groupadd -g $STUDENT_GID students && groupadd -g $TEACHER_GID teachers
     PYTHON_VERSION=$(python --version | cut -d ' ' -f 2 | cut -d '.' -f 1,2)
-    chown $NB_USER:$NB_GID $CONDA_DIR/lib/python$PYTHON_VERSION/site-packages
-    chown $NB_USER:$NB_GID $CONDA_DIR/man/man1/
-    chown $NB_USER:$NB_GID $CONDA_DIR/bin/
+    chown $NB_USER:root $CONDA_DIR/lib/python$PYTHON_VERSION/site-packages
+    chown $NB_USER:root $CONDA_DIR/man/man1/
+    chown $NB_USER:root $CONDA_DIR/bin/
+    chown $NB_USER:root ~/.jupyter
+    chown $NB_USER:root ~/.local
+    chown $NB_USER:root ~/.local/share/jupyter
 
     jupyter nblineage quick-setup
     jupyter nbextension install --py lc_multi_outputs --user
     jupyter nbextension enable lc_multi_outputs --user --py
-    if [ $NB_GID = "22000" ]; then
-        jupyter nbextension enable --sys-prefix formgrader/main --section=tree
+
+    if [ "$COURSEROLE" == "Instructor" ]; then
         jupyter serverextension enable --sys-prefix nbgrader.server_extensions.formgrader
+        jupyter nbextension enable --sys-prefix formgrader/main --section=tree
         jupyter nbextension enable --sys-prefix create_assignment/main
+        jupyter labextension enable nbgrader:formgrader
+        jupyter labextension enable nbgrader:create-assignment
     fi
 
     # Add $CONDA_DIR/bin to sudo secure_path
     sed -r "s#Defaults\s+secure_path\s*=\s*\"?([^\"]+)\"?#Defaults secure_path=\"\1:$CONDA_DIR/bin\"#" /etc/sudoers | grep secure_path > /etc/sudoers.d/path
 
-    mkdir -p /home/$NB_USER/.local/share/jupyter/
-    chown $NB_USER:root /home/$NB_USER/.local/share/jupyter/
     # Exec the command as NB_USER with the PATH and the rest of
     # the environment preserved
     run-hooks /usr/local/bin/before-notebook.d

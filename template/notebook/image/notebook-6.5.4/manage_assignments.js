@@ -114,16 +114,23 @@ var AssignmentUI = Backbone.View.extend({
 
         // Append link with a listener to send message to iframe parent.
         // NOTE: the formgrade UI is embedded in an iframe.
-        this.$name.append($("<a/>")
-            .text(name)
-            .attr("href", "#")
-            .click(function() {
-                window.parent.postMessage(
-                    jlab_go_to_path(url_prefix + "/" + this_assignment.model.get("source_path")),
-                    '*'
-                );
-            })
-        );
+        if (window === window.top){
+            this.$name.append($("<a/>")
+                .text(name)
+                .attr("href", base_url + "/tree/" + url_prefix + "/source/" + name)
+            );
+        } else {
+            this.$name.append($("<a/>")
+                .text(name)
+                .attr("href", "#")
+                .click(function() {
+                    window.parent.postMessage(
+                        jlab_go_to_path(url_prefix + "/" + this_assignment.model.get("source_path")),
+                        '*'
+                    );
+                })
+            );
+        }
 
         // duedate
         var duedate = this.model.get("duedate");
@@ -186,20 +193,31 @@ var AssignmentUI = Backbone.View.extend({
         if (release_path) {
             // Append link with a listener to send message to iframe parent.
             // NOTE: the formgrade UI is embedded in an iframe.
-            this.$preview.append($("<a/>")
-                .attr("href", "#")
-                .click(function() {
-                    window.parent.postMessage(
-                        jlab_go_to_path(url_prefix + "/" + release_path),
-                        '*'
-                    );
-                })
-                .append($("<span/>")
-                    .addClass("glyphicon glyphicon-search")
-                    .attr("aria-hidden", "true")
-                )
-            );
-        }
+
+            if (window === window.top){
+                this.$preview.append($("<a/>")
+                    .attr("href", base_url + "/notebooks/" + url_prefix + "/release/" + name)
+                    .append($("<span/>")
+                        .addClass("glyphicon glyphicon-search")
+                        .attr("aria-hidden", "true")
+                    )
+                );
+            } else {
+               this.$preview.append($("<a/>")
+                    .attr("href", "#")
+                    .click(function() {
+                        window.parent.postMessage(
+                            jlab_go_to_path(url_prefix + "/" + release_path),
+                            '*'
+                        );
+                    })
+                    .append($("<span/>")
+                        .addClass("glyphicon glyphicon-search")
+                        .attr("aria-hidden", "true")
+                    )
+                );
+            };
+        };
 
         // release
         var releaseable = this.model.get("releaseable");

@@ -57,6 +57,10 @@ RUN jupyter nbextension disable --sys-prefix course_list/main --section=tree
 RUN jupyter serverextension disable --sys-prefix nbgrader.server_extensions.course_list
 RUN jupyter nbextension disable --sys-prefix create_assignment/main
 
+RUN jupyter labextension disable nbgrader:formgrader
+RUN jupyter labextension disable nbgrader:course-list
+RUN jupyter labextension disable nbgrader:create-assignment
+
 RUN rm -rf /var/lib/apt/lists/*
 
 # setup files for Nbgrader
@@ -68,6 +72,7 @@ RUN sed -i -e 's/perms \& 0o777/perms \& 0o755/' /opt/conda/lib/python3.11/site-
 RUN sed -i -e 's/return 660 if self\.coursedir\.groupshared else 640/return 664 if self\.coursedir\.groupshared else 644/g' /opt/conda/lib/python3.11/site-packages/nbgrader/converters/generate_feedback.py
 HEALTHCHECK NONE
 RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js
+RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
 ADD manage_assignments.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js
+ADD manage_submissions.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
 ADD gradebook_assignments.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js
-

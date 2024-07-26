@@ -5,7 +5,6 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
       - {{jupyterhub_dir}}/jupyterhub:/etc/jupyterhub
-      # - {{jupyterhub_dir}}/jupyterhub/packages/dockerspawner:/usr/local/lib/python3.10/dist-packages/dockerspawner
       - /exchange:/exchange
       - /jupyter:/jupyter
     networks:
@@ -20,8 +19,8 @@ services:
       EMAIL_DOMAIN: {{email_domain}}
       JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users}}"
       CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}}
-      TEACHER_GID: {{groupid_teachers}}
-      STUDENT_GID: {{groupid_students}}
+      TEACHER_GID: {{gid_teacher}}
+      STUDENT_GID: {{gid_student}}
       NB_NODE_ROLE: {{node_role}}
       LDAP_ADMIN: {{ldap_admin}}
       LDAP_PASSWORD: {{ldap_password}}
