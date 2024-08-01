@@ -116,7 +116,12 @@ class SysUserSwarmSpawner(DockerSpawner):
         ),
     )
 
-    # container-removal cannot be disabled for services
+    def _args_default(self):
+        """
+        Get args for run the container
+        """
+        return ['--allow-root']
+
     remove = True
 
     @property
@@ -153,10 +158,7 @@ class SysUserSwarmSpawner(DockerSpawner):
             If system users are being used, then we need to know their user id
             in order to mount the home directory.
 
-            User IDs are looked up in two ways:
-
-            1. stored in the state dict (authenticator can write here)
-            2. lookup via pwd
+            User must be specified.
             """
         ),
     )
@@ -168,11 +170,8 @@ class SysUserSwarmSpawner(DockerSpawner):
             """
             If system users are being used, then we need to know their group id
             in order to mount the home directory with correct group permissions.
-
-            Group IDs are looked up in two ways:
-
-            1. stored in the state dict (authenticator can write here)
-            2. lookup via pwd
+ 
+            Group ID must be specified.
             """
         ),
     )
@@ -186,8 +185,8 @@ class SysUserSwarmSpawner(DockerSpawner):
 
             Group IDs are looked up in two ways:
 
-            1. stored in the state dict (authenticator can write here)
-            2. lookup via pwd
+            1. specify this param
+            2. lookup via ldap
             """
         ),
     )
@@ -199,7 +198,7 @@ class SysUserSwarmSpawner(DockerSpawner):
     )
 
     ldap_base_dn = Unicode(
-        "ou=People,dc=examople,dc=com",
+        "ou=People,dc=example,dc=com",
         config=True,
         help=("""Base dn string to search LDAP information"""),
     )
@@ -232,66 +231,21 @@ class SysUserSwarmSpawner(DockerSpawner):
                           raise_exceptions=True)
         response = None
         if conn:
-            self.log.info("Connect to local LDAP server.\n")
+            self.log.info("Connect to local LDAP server.")
             result = conn.search(self.ldap_base_dn,
-                                 f'(uidNumber={self.uid_number})',
+                                 f'(uidNumber={self.user_id})',
                                  attributes=attrs,
                                  )
 
             if result:
                 response = conn.entries[0].entry_attributes_as_dict
             else:
-                self.log.error(f"Cannot find attribute: {attrs}\n")
+                self.log.error(f"Cannot find attribute: {attrs}")
             conn.unbind()
         else:
-            self.log.error("Could not connect to local LDAP server.\n")
+            self.log.error("Could not connect to local LDAP server.")
 
         return response
-
-    def ldap_get_userid(self):
-        response = self.ldap_get_attribute(['uidNumber'])
-        default_uid = 0
-
-        if response is None:
-            return default_uid
-
-        if 'uidNumber' not in response:
-            return default_uid
-
-        if response['uidNumber'] is None:
-            return default_uid
-
-        return response['uidNumber'][0]
-
-    def ldap_get_groupid(self):
-        response = self.ldap_get_attribute(['gidNumber'])
-        default_gid = 0
-
-        if response is None:
-            return default_gid
-
-        if 'gidNumber' not in response:
-            return default_gid
-
-        if response['gidNumber'] is None:
-            return default_gid
-
-        return response['gidNumber'][0]
-
-    def ldap_get_homedir(self):
-        response = self.ldap_get_attribute(['homeDirectory'])
-        default_home_dir = ""
-
-        if response is None:
-            return default_home_dir
-
-        if 'homeDirectory' not in response:
-            return default_home_dir
-
-        if response['homeDirectory'] is None:
-            return default_home_dir
-
-        return response['homeDirectory'][0]
 
     async def poll(self):
         """Check for my id in `docker ps`"""
@@ -350,22 +304,16 @@ class SysUserSwarmSpawner(DockerSpawner):
         return task
 
     def get_env(self):
-        # jupyterhub_config.pyでspawner.environmentに指定したものは、ここでセットされる
         env = super(SysUserSwarmSpawner, self).get_env()
-
-        # relies on NB_USER and NB_UID handling in jupyter/docker-stacks
-        # 以下の環境変数は、jupyterhub_config.pyでspawner.environmentに指定したものが上書きされる
         env.update(
             dict(
-                # USER=self.user.name,  # deprecated
                 NB_USER=self.login_user_name if self.login_user_name else self.user.name,
-                # USER_ID=self.user_id,  # deprecated
                 NB_UID=self.user_id,
+                NB_GID=self.group_id,
                 HOME=self.homedir,
             )
         )
-        if self.group_id >= 0:
-            env.update(NB_GID=self.group_id)
+
         return env
 
     async def create_object(self):
@@ -524,39 +472,3 @@ class SysUserSwarmSpawner(DockerSpawner):
                 )
 
         return ip, port
-
-    def _user_id_default(self):
-        """
-        Get user_id from pwd lookup by name
-
-        If the authenticator stores user_id in the user state dict,
-        this will never be called, which is necessary if
-        the system users are not on the Hub system (i.e. Hub itself is in a container).
-        """
-        # import pwd
-
-        # return pwd.getpwnam(self.user.name).pw_uid
-        return self.ldap_get_userid()
-
-    def _group_id_default(self):
-        """
-        Get group_id from pwd lookup by name
-
-        If the authenticator stores group_id in the user state dict,
-        this will never be called, which is necessary if
-        the system users are not on the Hub system (i.e. Hub itself is in a container).
-        """
-        # import pwd
-
-        # return pwd.getpwnam(self.user.name).pw_gid
-        return self.ldap_get_groupid()
-
-    def _homedir_default(self):
-        """
-        Get group_id from pwd lookup by name
-
-        If the authenticator stores group_id in the user state dict,
-        this will never be called, which is necessary if
-        the system users are not on the Hub system (i.e. Hub itself is in a container).
-        """
-        return self.ldap_get_homedir()
