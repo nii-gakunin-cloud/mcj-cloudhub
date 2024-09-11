@@ -23,11 +23,11 @@ services:
         target: /app/{{ accounts_file }}
       - ./selenium-client/result:/app/result
     environment:
-      LMS_URL: {{ lms_platform_id }}
+      LMS_URL: "{{ lms_platform_id }}"
       RESULT_OUTPUT: "true"
       CODE_EXEC: "print('Hello world')"
-      LMS_TOOL_ID: {{ lms_tool_id }}
-      ACCOUNTS_FILE: {{ accounts_file }}
+      LMS_TOOL_ID: "{{ lms_tool_id }}"
+      ACCOUNTS_FILE: "{{ accounts_file }}"
     command: ["python", "/app/test.py", "/app/{{ accounts_file }}"]
     depends_on:
       selenium-executer:
