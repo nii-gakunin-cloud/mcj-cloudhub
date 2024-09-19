@@ -1,5 +1,7 @@
 """Module providing a function testing single-user notebook server."""
 from __future__ import annotations
+import argparse
+import csv
 import datetime
 from enum import Enum
 import json
@@ -7,6 +9,7 @@ import logging
 from multiprocessing import Pool, Manager
 import os
 import time
+from typing import Union
 from urllib.parse import urlparse
 import yaml
 
@@ -20,55 +23,47 @@ from selenium.webdriver.support import expected_conditions as EC
 
 class MCJUserTest():
 
-    VIEW_TREE = 0
-    VIEW_LAB = 1
-
     class ViewType(Enum):
         TREE = 0
         LAB = 1
 
+    class MCJUserTestException(Exception):
+        def __init__(self, arg=''):
+            self.arg = arg
+
     view_type = None
 
     logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
+    logger.setLevel(logging.WARNING)
     handler = logging.StreamHandler()
     handler.setFormatter(logging.Formatter(
         '%(asctime)s %(funcName)s:%(lineno)s [%(levelname)s]: %(message)s'))
     logger.addHandler(handler)
 
-    def __init__(self, moodle_url: str, headless: bool = False,
+    def __init__(self, moodle_url: str, executer: str, headless: bool = False,
                  browser: str = "chrome", auto_exit: bool = True,
                  timeout: int = 60) -> None:
 
         if browser == "firefox":
             options = webdriver.FirefoxOptions()
-            if headless:
-                options.add_argument('--headless')
-            # options.add_argument("log-level=3")
-
-            try:
-                self.driver = webdriver.Remote(
-                    command_executor='http://selenium-executer:4444/wd/hub',
-                    options=options
-                )
-            except Exception as e:
-                print(e)
-                raise e
         elif browser == "chrome":
             options = webdriver.ChromeOptions()
-            if headless:
-                options.add_argument('--headless')
 
-            # options.add_argument("log-level=3")
+        if headless:
+            options.add_argument('--headless')
+
+        try:
             self.driver = webdriver.Remote(
-                command_executor='http://selenium-executer:4444/wd/hub',
+                command_executor=executer,
                 options=options
             )
+        except Exception as e:
+            print(e)
+            raise e
 
         self.auto_exit = auto_exit
         self.current_window = 0
         self.wait = WebDriverWait(self.driver, timeout)
-
         self.moodle_url = moodle_url
 
     def __del__(self):
@@ -128,10 +123,6 @@ class MCJUserTest():
 
         time.sleep(1)
         try:
-            # # URLがマッチするかログインエラーメッセージが出るまで待機
-            # WebDriverWait(self.driver, 60).until(
-            #     lambda driver: driver.find_element(By.ID, 'loginerrormessage') or EC.url_matches("/my/")(driver)
-            # )
 
             for _ in range(60):
 
@@ -195,7 +186,7 @@ class MCJUserTest():
 
         current_window_count = len(self.driver.window_handles)
         self.driver.get(f"{self.moodle_url}/mod/lti/view.php?id={tool_id}")
-        self.wait.until(EC.number_of_windows_to_be(
+        WebDriverWait(self.driver, 10).until(EC.number_of_windows_to_be(
             current_window_count + 1))
         self.switch_window()
         self.wait.until(EC.url_contains(
@@ -251,11 +242,10 @@ class MCJUserTest():
 
     def _open_new_notebook_lab(self, kernel=None):
 
-        time.sleep(10)
-
         # カーネル選択モーダルが開いている場合は閉じる
         # ダイアログは閉じたら次の物が開く。カーネル未選択のNotebookが開いていると、１つ閉じては開く
-        # 前回実行時にNotebookを開いて何もしないと、次回Jupyterを開いたときにカーネル未選択状態となっているため、繰り返すごとに開くモーダル数が＋１される。
+        # 前回実行時にNotebookを開いて何もしないと、次回Jupyterを開いたときにカーネル未選択状態となっているため、
+        # 繰り返すごとに開くモーダル数が＋１される。
         max_retry = 100
         for _ in range(max_retry):
             dialogs = self.driver.find_elements(By.CLASS_NAME, 'jp-Dialog')
@@ -320,6 +310,7 @@ class MCJUserTest():
         if view_type == self.ViewType.TREE.value:
             return self._open_new_notebook_tree(kernel)
         else:
+            time.sleep(10)
             return self._open_new_notebook_lab(kernel)
 
     def _edit_notebook_tree(self, code_execute=None, delete_after=False):
@@ -490,10 +481,10 @@ class MCJUserTest():
         except TimeoutException:
             pass
 
-
 def main(user_info: dict,
          moodle_url: str,
-         tool_id: int = -1,
+         executer: str,
+         tool_id: Union[int, None] = None,
          tool_name: str = None,
          course_name: str = None,
          browser: str = "chrome",
@@ -520,7 +511,6 @@ def main(user_info: dict,
                 d[k] = info[k]
 
             updated_json = json.dumps(d, indent=4)
-            # JSONファイルに更新データを書き込む
             with open(output, 'w', encoding='utf-8') as f:
                 f.write(updated_json)
 
@@ -533,12 +523,8 @@ def main(user_info: dict,
             if lock is not None:
                 lock.release()
 
-    if tool_id < 0 and tool_name is None:
-        raise ValueError('course_name and tool_name is required if tool_id is not specified.')
-
-    ut = MCJUserTest(moodle_url, headless, browser=browser,
+    ut = MCJUserTest(moodle_url, executer, headless, browser=browser,
                      auto_exit=False, timeout=timeout)
-
     result = dict(status='ng', started=datetime.datetime.now().isoformat(), detail=[])
     try:
 
@@ -550,12 +536,16 @@ def main(user_info: dict,
                        user_info["username"])
         # moodleのコースを選択して、外部ツールのURLを踏んでJupyterhubにログイン
         # tool_idを直接指定する or コース名とツール名を指定し、ブラウザ操作によりアクセスしてtoolリンクを踏む
-        if tool_id < 0:
+        if tool_id is None:
             tid = ut.get_tool_id(tool_name, course_name)
         else:
-            tid = tool_id
+            tid = int(tool_id)
 
-        current_url = ut.select_lti_url(tid)
+        try:
+            current_url = ut.select_lti_url(tid)
+        except TimeoutException as e:
+            result['error'] = f'Not found tool_id: {tid} in moodle'
+            raise e
 
         # lab/tree 判別
         o = urlparse(current_url)
@@ -573,11 +563,6 @@ def main(user_info: dict,
         result['detail'].append({'spawn': 'ok'})
 
         if exec_src is not None:
-            # # jupyter上でホームに移動（labでは不要？）
-            # ut.go_home_jh()
-            # テスト用に新規ノートブックを開く
-            # ut.open_new_notebook(kernel='LC_wrapper')
-            # ut.open_new_notebook(kernel='Python 3 (ipykernel)')
             file_name = ut.open_new_notebook(view_type.value)
 
             ut.logger.info('user [%s]: new notebook [%s] opened',
@@ -601,7 +586,7 @@ def main(user_info: dict,
     except Exception as e:
         ut.logger.error(type(e))
         ut.logger.error(e)
-        result['error'] = str(e)
+        result['exception_message'] = str(e)
         raise e
 
     finally:
@@ -610,30 +595,10 @@ def main(user_info: dict,
             _output_result(file_lock, result_output_file, {user_info['username']: result})
 
 
-
-if __name__ == "__main__":
-
-    # 前提条件
-    # moodle==4.2.7
-    # Python3.10.11
-
-    # Tips
-    # まずはファイル指定せず、1ユーザのみで起動できることを確認する。
-    # 1ユーザで起動確認ができたら、ファイル指定して多人数起動を試験する。（headless=Trueとすることを推奨）
-
-    import argparse
-    import csv
-
-    parser = argparse.ArgumentParser(
-        prog='test',
-        description='read csv',)
-
-    parser.add_argument('filename')
-    args = parser.parse_args()
-
+def _get_user_list(file: str):
     users = list()
-    file_ext = os.path.splitext(args.filename)[1]
-    with open(args.filename, encoding='utf8') as f:
+    file_ext = os.path.splitext(file)[1]
+    with open(file, encoding='utf8') as f:
         if '.csv' == file_ext:
             csv_data = list(csv.DictReader(f))
             for d in csv_data:
@@ -642,44 +607,79 @@ if __name__ == "__main__":
                 )
         elif file_ext in ('.yaml', '.yml'):
             users = yaml.safe_load(f)
+    return users
 
-    HEADLESS = False
+
+if __name__ == "__main__":
+
+    # 確認済み前提条件
+    # moodle==4.2.7
+    # Python3.10.11
+
+    parser = argparse.ArgumentParser(
+        prog='main',
+        description='e2e test for mcj-cloudhub using selenium',)
+
+    parser.add_argument('accounts_file', type=str,
+                        help='file path for test account list')
+    parser.add_argument('lms_url', type=str,
+                        help='lms url')
+    parser.add_argument('selenium_executer', type=str,
+                        help="executer for selenium")
+    parser.add_argument('-b', '--browser', type=str, default="chrome",
+                        help='browser to use (default: chrome)')
+    parser.add_argument('-l', '--headless', type=bool, default=True,
+                        help='exec in headless mode when True specified (default: True)')
+    parser.add_argument('-i', '--tool_id', type=int, default=None,
+                        help='tool id in lms for login to Jupyterhub with LTI')
+    parser.add_argument('-c', '--course_name', type=str, default=None,
+                        help='course_name in lms for login to Jupyterhub with LTI')
+    parser.add_argument('-t', '--tool_name', type=str, default=None,
+                        help='tool_name in lms for login to Jupyterhub with LTI')
+    parser.add_argument('-s', '--src', type=str, default=None,
+                        help="file path to execute in each user's single-user notebook server")
+    parser.add_argument('-o', '--output_result', type=bool, default=True,
+                        help="whether output result file (default: True)")
+
+    args = parser.parse_args()
+    users = _get_user_list(args.accounts_file)
+
+    # LMS_TOOL_ID の指定があればこれを優先する
+    # LMS_TOOL_ID の指定が無い場合、COURSE_NAME, TOOL_NAMEの指定が必須
+    tool_id = args.tool_id
+    course_name = args.course_name
+    tool_name = args.tool_name
+
+    if tool_id is None and (course_name is None and tool_name is None):
+        raise ValueError('course_name and tool_name is required if tool_id is not specified.')
+
+    exec_src = None
+    if args.src is not None and os.path.isfile(args.src):
+        with open(args.src, mode="r", encoding='utf8') as f:
+            exec_src = f.read()
+
+    result_file = None
+    if args.output_result:
+        date = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+        result_file = os.path.join(os.path.dirname(__file__),
+                                   'result', f'result_{date}.json')
+        if os.path.isfile(result_file):
+            os.remove(result_file)
+
     m = Manager()
     result_file_lock = m.Lock()
-
-    LMS_URL = os.environ['LMS_URL']
-
-    # 1. 外部ツールIDを指定する場合（外部ツールのリンクのクエリパラメータで確認）（推奨）
-    TOOL_ID = int(os.environ['LMS_TOOL_ID'])
-    COURSE_NAME = None
-    TOOL_NAME = None
-    CODE_EXEC = os.getenv('CODE_EXEC')
-
-    # 2. コース名・ツール名を指定し、seleniumに検索させる場合
-    # TOOL_ID = -1
-    # COURSE_NAME = 'mcj'
-    # TOOL_NAME = 'jupyterhub'
-
-    OUTPUT_FILE = None
-    if os.getenv('RESULT_OUTPUT'):
-        date = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-        OUTPUT_FILE = os.path.join(os.path.dirname(__file__), 'result', f'result_{date}.json')
-        if os.path.isfile(OUTPUT_FILE):
-            os.remove(OUTPUT_FILE)
-
     p = Pool(len(users))
     for user in users:
-        # timeoutは、コンテナのspawn時間より長くする 同時起動数が多いと各ユーザのspawn時間も延びる？
         p.apply_async(main,
-                      args=(user, LMS_URL),
-                      kwds=dict(tool_id=TOOL_ID, tool_name=TOOL_NAME, course_name=COURSE_NAME,
-                                browser="firefox", headless=HEADLESS, file_lock=result_file_lock,
-                                result_output_file=OUTPUT_FILE, logout=False, exec_src=CODE_EXEC))
+                      args=(user, args.lms_url, args.selenium_executer),
+                      kwds=dict(tool_id=tool_id, tool_name=tool_name,
+                                course_name=course_name, browser=args.browser,
+                                headless=args.headless,
+                                file_lock=result_file_lock,
+                                result_output_file=result_file,
+                                logout=False, exec_src=exec_src))
 
-    print('Start each subprocesses')
+    print('Start subprocesses')
     p.close()
     p.join()
     print('All subprocesses done.')
-
-    # main(users[0], headless, 60)
-

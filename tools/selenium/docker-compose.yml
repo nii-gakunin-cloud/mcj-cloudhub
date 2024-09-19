@@ -1,7 +1,8 @@
 services:
   selenium-executer:
     container_name: selenium-executer
-    image: selenium/standalone-firefox:4.23.1-20240820
+#     image: selenium/standalone-firefox:4.23.1-20240820
+    image: selenium/standalone-chrome:4.23.1-20240820
     ports:
       - 4444:4444
       - 7900:7900
@@ -19,16 +20,16 @@ services:
       context: ./selenium-client
     volumes:
       - type: bind
-        source: ./{{ accounts_file }}
-        target: /app/{{ accounts_file }}
+        source: ./accounts.yaml
+        target: /app/accounts.yaml
       - ./selenium-client/result:/app/result
-    environment:
-      LMS_URL: "{{ lms_platform_id }}"
-      RESULT_OUTPUT: "true"
-      CODE_EXEC: "print('Hello world')"
-      LMS_TOOL_ID: "{{ lms_tool_id }}"
-      ACCOUNTS_FILE: "{{ accounts_file }}"
-    command: ["python", "/app/test.py", "/app/{{ accounts_file }}"]
+    command:
+      - python
+      - /app/main.py
+      - /app/accounts_file.yaml
+      - http://localhost/
+      - http://selenium-executer:4444/wd/hub
+      - -i 0
     depends_on:
       selenium-executer:
         condition: service_healthy
