@@ -549,9 +549,9 @@ def main(user_info: dict,
 
         # lab/tree 判別
         o = urlparse(current_url)
-        if o.path.find('tree'):
+        if o.path.find('tree') > 0:
             view_type = ut.ViewType.TREE
-        elif o.path.find('lab'):
+        elif o.path.find('lab') > 0:
             view_type = ut.ViewType.LAB
         else:
             raise Exception("Spawn failed")
