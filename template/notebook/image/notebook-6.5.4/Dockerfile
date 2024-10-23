@@ -39,7 +39,7 @@ RUN jupyter nbextensions_configurator enable --user
 RUN jupyter serverextension enable --sys-prefix --py jupyter_nbextensions_configurator
 
 RUN pip3 install jupyterlab-language-pack-ja-JP
-RUN pip3 install nbgrader==0.8.5 sqlalchemy==1.4.49 jinja2==3.0.3
+RUN pip3 install nbgrader==0.8.5 sqlalchemy==1.4.49 jinja2==3.0.3 jupyterhub==4.0.2
 RUN pip3 install git+https://github.com/NII-cloud-operation/Jupyter-multi_outputs
 RUN pip3 install git+https://github.com/NII-cloud-operation/Jupyter-LC_nblineage
 

@@ -36,7 +36,7 @@ IMS_LTI13_NRPS_TOKEN_SCOPE = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/scope/cont
 IMS_LTI13_NRPS_ASSERT_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 IMS_LTI13_KEY_NRPS = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/claim/namesroleservice'
 
-DEFUALT_IDLE_TIMEOUT = 600
+DEFUALT_IDLE_TIMEOUT = 1800
 DEFUALT_CULL_EVERY = 60
 DEFUALT_SERVER_MAX_AGE = 0
 DEFUALT_COOKIE_MAX_AGE_DAYS = 0.25
@@ -122,6 +122,16 @@ if cull_server_idle_timeout > 0:
             # "admin": True,
         }
     ]
+
+log_collect_duration = int(os.getenv('LOG_COLLECT_DURATION', 0))
+if log_collect_duration > 0:
+    c.JupyterHub.services.append({
+        'name': 'log-collect-service',
+        'admin': True,
+        'api_token': 'super-secret',
+        'command': ['/usr/bin/python3', '/etc/jupyterhub/log_collect.py',
+                    '--duration', str(log_collect_duration), '--home', home_directory_root]
+    })
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     c.CryptKeeper.keys = [os.urandom(32)]
@@ -495,8 +505,8 @@ def create_nbgrader_path(course_short_name,
         autotests_yml = f'{nbgrader_template_path}/autotests.yml'
 
         create_dir(instructor_root_path, uid=user_uid_num,
-                   gid=gid_teachers)
-        create_dir(course_path, uid=user_uid_num, gid=gid_teachers)
+                   gid=gid_teachers, mode=0o0755)
+        create_dir(course_path, uid=user_uid_num, gid=gid_teachers, mode=0o0755)
         create_dir(course_autograded_path, mode=0o0755, uid=user_uid_num,
                    gid=groupid)
         create_dir(course_release_path, mode=0o0755, uid=user_uid_num,
@@ -729,12 +739,16 @@ def create_home_hook(spawner, auth_state):
     else:
         update_ldap(lms_username, role_config[lms_role]['gid_num'])
 
-    if not os.path.isdir(user_home) \
-            and not os.path.isfile(user_home):
-
-        shutil.copytree(skelton_directory, user_home)
-        if os.path.isdir(user_home):
-            change_owner(user_home, uid_num, role_config[lms_role]['gid_num'])
+    # ホームディレクトリ作成
+    create_dir(user_home, mode=0o755, uid=uid_num, gid=role_config[lms_role]['gid_num'])
+    if lms_role == Role.INSTRUCTOR.value:
+        tools_dir = os.path.join(user_home, 'tools')
+        if not os.path.isdir(tools_dir):
+            shutil.copytree(os.path.join(skelton_directory, 'tools'),
+                            tools_dir)
+            os.chown(tools_dir, uid_num, -1)
+            for f in os.scandir(tools_dir):
+                os.chown(f, uid_num, -1)
 
     spawner.environment = {
         'MOODLECOURSE': auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['label'],
@@ -743,9 +757,12 @@ def create_home_hook(spawner, auth_state):
         'PWD': user_home,
         'TEACHER_GID': gid_teachers,
         'STUDENT_GID': gid_students,
+        'JUPYTERHUB_FQDN': jupyterhub_fqdn,
         'PATH': f'{user_home}/.local/bin:' +
                 f'{user_home}/bin:/usr/local/bin:/usr/local/sbin:' +
-                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin'}
+                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:' +
+                f'/home/{lms_username}/tools',
+    }
 
     spawner.cpu_limit = role_config[lms_role]['cpu_limit']
     spawner.mem_limit = role_config[lms_role]['mem_limit']
@@ -759,6 +776,7 @@ def create_home_hook(spawner, auth_state):
     if isinstance(mount_volumes, list) and len(mount_volumes) != 0:
         spawner.extra_container_spec['mounts'] = mount_volumes
         spawner.extra_container_spec['user'] = '0'
+
     spawner.login_user_name = lms_username
     spawner.user_id = uid_num
     spawner.group_id = role_config[lms_role]['gid_num']
