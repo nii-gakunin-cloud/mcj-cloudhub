@@ -61,7 +61,7 @@ def collect_json(home: str = '/home'):
                                                          student_name), dirs_exist_ok=True)
         teachers[user_home.name] = dict(home=user_home.path, courses=courses)
 
-def get_meme_ids(cells: list):
+def get_cell_info(cells: list):
 
     class __NBSection():
         """Markdownの章立てを把握する
@@ -201,14 +201,14 @@ def log2db(home: str = '/home'):
                     if os.path.splitext(f)[1] != '.ipynb':
                         continue
                     with open(f, mode='r', encoding='utf8') as notebook:
-                        cells = json.load(notebook)['cells']
-                    log_ids = get_meme_ids(cells)
-                    update_or_create_log_id(log_db_pass,
+                        cell_infos = get_cell_info(json.load(notebook)['cells'])
+
+                    update_or_create_cell_id(log_db_pass,
                                             f.name,
                                             assignment_name,
-                                            log_ids)
+                                            cell_infos)
                     assign_info[assignment_name]['notebooks'].append(
-                        {f.name: dict(log_ids=log_ids)})
+                        {f.name: dict(cell_infos=cell_infos)})
 
             for student in students:
                 student_name = student
@@ -234,14 +234,14 @@ def log2db(home: str = '/home'):
                         if not os.path.isfile(student_local_notebook):
                             continue
 
-                        for log_id in notebook[notebook_name]['log_ids']:
+                        for cell_info in notebook[notebook_name]['cell_infos']:
                             log_json = os.path.join(student_local_log_dir,
-                                                    log_id['meme_id'],
-                                                    log_id['meme_id']+'.json')
+                                                    cell_info['meme_id'],
+                                                    cell_info['meme_id']+'.json')
                             logs = load_log_json(log_json, notebook_name,
-                                                 log_id['section'])
+                                                 cell_info['section'])
                             update_or_create_log(log_db_pass, notebook_name, assign_name,
-                                                 student_name, log_id['meme_id'], logs)
+                                                 student_name, cell_info['meme_id'], logs)
 
 
 def update_or_create_log_student(db_pass: str, students: list):
@@ -262,10 +262,10 @@ def update_or_create_log_student(db_pass: str, students: list):
     insert_db(db_pass, sql, values)
 
 
-def update_or_create_log_id(db_pass: str, notebook_name: str,
-                            assignment: str, log_ids: list):
+def update_or_create_cell_id(db_pass: str, notebook_name: str,
+                            assignment: str, cell_infos: list):
 
-    if len(log_ids) == 0:
+    if len(cell_infos) == 0:
         return
 
     items = [
@@ -276,15 +276,15 @@ def update_or_create_log_id(db_pass: str, notebook_name: str,
     ]
 
     values = list()
-    for log_id in log_ids:
+    for cell_info in cell_infos:
         values.append([
-            log_id['meme_id'],
+            cell_info['meme_id'],
             assignment,
-            log_id['section'],
+            cell_info['section'],
             notebook_name,
         ])
 
-    sql = 'insert or ignore into log_id ('
+    sql = 'insert or ignore into cell ('
     sql += ','.join(items)
     sql += ') values ('
     sql += ','.join('?' for _ in range(len(items)))
@@ -300,15 +300,15 @@ def jst2datetime(dt: str) -> datetime:
 
 def update_or_create_log(db_path: str,  notebook_name: str,
                          assignment: str, user_id: str,
-                         log_id: str, logs: list):
+                         cell_id: str, logs: list):
 
     items = [
         'assignment',
         'student_id',
-        'log_id',
+        'cell_id',
         'log_sequence',
         'notebook_name',
-        'log_whole',
+        'log_json',
         'log_code',
         'log_path',
         'log_start',
@@ -328,7 +328,7 @@ def update_or_create_log(db_path: str,  notebook_name: str,
         values.append([
             assignment,
             user_id,
-            log_id,
+            cell_id,
             i,
             notebook_name,
             json.dumps(log),

@@ -2,10 +2,10 @@ CREATE TABLE IF NOT EXISTS log
 (id                        INTEGER     NOT NULL,
  assignment                VARCHAR     NOT NULL,
  student_id                VARCHAR     NOT NULL,
- log_id                    VARCHAR     NOT NULL,
+ cell_id                   VARCHAR     NOT NULL,
  log_sequence              INTEGER     NOT NULL,
  notebook_name             VARCHAR,
- log_whole                 JSON,
+ log_json                  JSON,
  log_code                  VARCHAR,
  log_path                  VARCHAR,
  log_start                 TIMESTAMP,
@@ -18,9 +18,9 @@ CREATE TABLE IF NOT EXISTS log
  log_lc_notebook_meme      VARCHAR,
  log_execute_reply_status  VARCHAR,
  PRIMARY KEY (id),
- CONSTRAINT UC_log UNIQUE (assignment, student_id, log_id, log_sequence)
+ CONSTRAINT UC_log UNIQUE (assignment, student_id, cell_id, log_sequence)
 );
-CREATE TABLE IF NOT EXISTS log_id
+CREATE TABLE IF NOT EXISTS cell
 (id                        VARCHAR     NOT NULL,
  assignment                VARCHAR     NOT NULL,
  section                   VARCHAR,

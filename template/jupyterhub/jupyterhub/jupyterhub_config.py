@@ -708,6 +708,22 @@ def get_user_role(auth_state):
     return role
 
 
+def set_permission_recursive(path: str, mode = None, uid: int = -1, gid: int = -1):
+    
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            p = os.path.join(root, d)
+            if mode is not None:
+                os.chmod(p, mode)
+            os.chown(p, uid, gid)
+
+        for f in files:
+            p = os.path.join(root, f)
+            if mode is not None:
+                os.chmod(p, mode)
+            os.chown(p, uid, gid)
+
+
 def create_home_hook(spawner, auth_state):
 
     if not auth_state:
@@ -742,13 +758,11 @@ def create_home_hook(spawner, auth_state):
     # ホームディレクトリ作成
     create_dir(user_home, mode=0o755, uid=uid_num, gid=role_config[lms_role]['gid_num'])
     if lms_role == Role.INSTRUCTOR.value:
-        tools_dir = os.path.join(user_home, 'tools')
+        tools_dir = os.path.join(user_home, 'teacher_tools')
         if not os.path.isdir(tools_dir):
-            shutil.copytree(os.path.join(skelton_directory, 'tools'),
+            shutil.copytree(os.path.join(skelton_directory, 'teacher_tools'),
                             tools_dir)
-            os.chown(tools_dir, uid_num, -1)
-            for f in os.scandir(tools_dir):
-                os.chown(f, uid_num, -1)
+            set_permission_recursive(tools_dir, uid=uid_num)
 
     spawner.environment = {
         'MOODLECOURSE': auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['label'],
