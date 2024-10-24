@@ -708,7 +708,8 @@ def get_user_role(auth_state):
     return role
 
 
-def set_permission_recursive(path: str, mode = None, uid: int = -1, gid: int = -1):
+def set_permission_recursive(path: str, mode = None,
+                             uid: int = -1, gid: int = -1):
     
     for root, dirs, files in os.walk(path):
         for d in dirs:
