@@ -1,142 +1,241 @@
-import argparse
-import datetime
+from datetime import datetime, timedelta, timezone
+import glob
+import logging
 import json
 import os
 import re
-import shutil
+import sys
 import time
 
 from nbgrader.api import Gradebook
 import sqlite3
 
+JST = timezone(timedelta(hours=+9), 'JST')
+LOG_DB_INIT_SQL = os.path.join(
+        os.path.dirname(__file__), 'init_log.sql')
+DEFAULT_DT_FROM = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
-def collect_json(home: str = '/home'):
+
+def jst2datetime(dt: str) -> datetime:
+    """JSTのタイムスタンプをdatetime型に変換する
+
+    LC_wrapperに登録されているタイムスタンプ型をタイムゾーン情報を持つdatetime型に変換する。
+
+    :param dt: JSTタイムスタンプ（'%Y-%m-%d %H:%M:%S (JST)'）
+    :type dt: string
+    :returns: datetime
+    :rtype: datetime
+
+    >>> jst2datetime("2024-10-18 19:32:54(JST)")
+    datetime.datetime(2024, 10, 18, 19, 32, 54, tzinfo=datetime.timezone(datetime.timedelta(seconds=32400)))
     """
-    {
-        'teacher01': {
-            'home': '/jupyter/teacher01',
-            'courses': {
-                'course01': {
-                    'students': [('mcjt1', 'mcjt', '1', 'mcjt1@example.com', 'mcjt1')]
-                }
-            }
-        }
-    }
+    converted_dt = datetime.strptime(
+        dt.replace('(JST)', ' +0900'), '%Y-%m-%d %H:%M:%S %z')
+    return converted_dt
+
+
+def get_course_students(db_path: str, course_name: str) -> list:
+    """コースの学生IDリストを返す
+
+    :param db_path: dbファイルへのパス
+    :type db_path: string
+    :param course_name: コース名
+    :type course_name: string
+    :returns: 学生のIDリスト ex. ['student01', 'student02']
+    :rtype: list
     """
-    teachers = dict()
-    for user_home in os.scandir(home):
-        if not user_home.is_dir():
-            continue
+    if not os.path.isfile(db_path):
+        return []
+    gb = Gradebook('sqlite:///' + db_path, course_name)
+    return [d.id for d in gb.students]
 
-        nbgrader_root = os.path.join(user_home.path, 'nbgrader')
 
-        if not os.path.isdir(nbgrader_root):
-            continue
+def get_course_assignments(db_path: str, course_name: str) -> list:
+    """コースの課題リストを返す
 
-        courses = dict()
-        for course in os.scandir(nbgrader_root):
-            if not course.is_dir():
-                continue
+    :param db_path: dbファイルへのパス
+    :type db_path: string
+    :param course_name: コース名
+    :type course_name: string
+    :returns: 課題名リスト ex. ['assignment01', 'assignment02']
+    :rtype: list
+    """
+    if not os.path.isfile(db_path):
+        return []
+    gb = Gradebook('sqlite:///' + db_path, course_name)
+    return [d.name for d in gb.assignments]
 
-            dbfile = os.path.join(course.path, 'gradebook.db')
-            if not os.path.isfile(dbfile):
-                continue
-            gb = Gradebook('sqlite:///' + dbfile, course.name, )
-            students = [d.id for d in gb.students]
 
-            for student in students:
-                student_name = student[0]
-                student_course_dir = os.path.join(home, student_name, course.name)
-                if not os.path.isdir(student_course_dir):
-                    continue
-                student_assignments = os.scandir(student_course_dir)
+def get_cell_info(cells: list) -> list:
+    """.ipynb形式のノートブックのセルデータを整理する
 
-                for assignment in student_assignments:
-                    if os.path.isdir(os.path.join(assignment, '.log')):
-                        _ = shutil.copytree(os.path.join(assignment, '.log'),
-                                            os.path.join(nbgrader_root,
-                                                         'students_log',
-                                                         course.name,
-                                                         assignment.name,
-                                                         student_name), dirs_exist_ok=True)
-        teachers[user_home.name] = dict(home=user_home.path, courses=courses)
+    cellのタイプが'code'であるセルのみを抽出する。
+    cellのタイプが'markdown'であるセルは、先頭が`#`始まりの場合、見出しセルとみなして
+    章番号を取得する。
+    LC_wrapperで出力されるログを想定している。
 
-def get_cell_info(cells: list):
+    :param cells: ノートブックのセル情報のリスト
+    :type cells: list
+
+    >>> get_cell_info([
+    ...     {
+    ...         "cell_type": "markdown",
+    ...         "id": "5f44c941",
+    ...         "metadata": {
+    ...             "lc_cell_meme": {
+    ...                 "current": "cd9eaa0a-90e4-11ef-aad1-02420a010038",
+    ...                 "next": "cd9eaadc-90e4-11ef-aad1-02420a010038",
+    ...                 "previous": None
+    ...             }
+    ...         },
+    ...         "source": [
+    ...           "# this is markdown cell title"
+    ...         ]
+    ...     },
+    ...     {
+    ...         "cell_type": "code",
+    ...         "execution_count": 1,
+    ...         "id": "4855ae0b",
+    ...         "metadata": {
+    ...             "lc_cell_meme": {
+    ...                 "current": "cd9eab9a-90e4-11ef-aad1-02420a010038",
+    ...                 "execution_end_time": "2024-10-23T02:15:28.653396Z",
+    ...                 "next": "cd9eac26-90e4-11ef-aad1-02420a010038",
+    ...                 "previous": "cd9eaadc-90e4-11ef-aad1-02420a010038"
+    ...             }
+    ...         },
+    ...         "outputs": [],
+    ...         "source": [
+    ...           "this is code cell"
+    ...         ]
+    ...     }
+    ... ])
+    [{'cell_id': 'cd9eab9a-90e4-11ef-aad1-02420a010038', 'section': '1'}]
+    """
 
     class __NBSection():
-        """Markdownの章立てを把握する
-        #の数を`level`として、current = [level1, level2, level3, ... , leveln]
+        """Markdownの章立てを把握するためのクラス
 
-        # sec1       [1]
-
-        ## sec1-1    [1, 1]
-        ## sec1-2    [1, 2]
-        # sec2       [2, 0]
+        最新の章番号をListで持つ。1.1.1 の場合、[1, 1, 1]。
+        章番号をインクリメントするindexを指定してインクリメントしていく。
         """
         current = []
+
         def count_hashes(self, s) -> int:
+            """先頭の`#`の数を返す
+            :param s: 先頭の`#`の数をカウントしたい文字列
+            :type s: string
+            :returns: 先頭の`#`の数
+            :rtype: int
+
+            >>> count_hashes('## This is Second Section')
+            2
+            """
             match = re.match(r'#+', s)
             return len(match.group(0)) if match else 0
 
         def increment_section(self, level: int):
+            """章番号をインクリメントする
+
+            :param level: インクリメントする章の階層（`#`の数を指定する）
+            :type level: int
+            """
             if len(self.current) <= level:
                 diff = [0 for i in range(level - len(self.current))]
                 self.current.extend(diff)
             self.current[level-1] += 1
 
         def get_current_section(self):
+            """現在の章番号を返す
+            現在の章番号を文字列で返す。
+            :returns: 章番号をドット区切りにした文字列。ex. "1.1.1"
+            :rtype: str
+            """
             return ".".join([str(_) for _ in self.current.copy()])
 
-    meme_ids = list()
+    cell_ids = list()
+    cell_id_key = 'lc_cell_meme'
     sections = __NBSection()
     for cell in cells:
         if cell['cell_type'] == 'code':
-            meme_id = cell['metadata'].get('lc_cell_meme')
-            if meme_id is None:
+            cell_id = cell['metadata'].get(cell_id_key)
+            if cell_id is None:
                 continue
-            meme_ids.append(dict(meme_id=meme_id['current'],
+            cell_ids.append(dict(cell_id=cell_id['current'],
                                  section=sections.get_current_section()))
         elif cell['cell_type'] == 'markdown':
+            if len(cell['source']) == 0:
+                continue
             # 章番号があればインクリメント
             level = sections.count_hashes(cell['source'][0])
             if level > 0:
                 sections.increment_section(level)
         else:
             continue
-    return meme_ids
+    return cell_ids
 
-def exec_sql(db_path: str, sqls: list, read_only=False):
 
-    if read_only:
-        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
-    else:
-        conn = sqlite3.connect(db_path)
+def create_db(db_dir: str, db_name: str = "exec_history.db",
+               owner_uid: int = -1, owner_gid: int = -1,
+               exist_ok: bool = True) -> str:
+    """db(sqlite)を作成する
 
-    with conn:
-        cur = conn.cursor()
-        res = list()
-        for sql in sqls:
-            cur.execute(sql)
-            res.append(cur.fetchall())
-    return res
+    :param db_dir: dbファイルを作成するディレクトリ
+    :type db_dir: string
+    :param db_name: dbファイル名
+    :type db_name: string
+    :param owner_uid: ファイルのオーナuid -1を指定した場合は変更しない。
+    :type owner_uid: int optional defaults to -1
+    :param owner_gid: ファイルのオーナgid -1を指定した場合は変更しない。
+    :type owner_gid: int optional defaults to -1
+    :param exist_ok: Falseの場合、DBが既に存在する場合に例外（FileExistsError）を浮揚する。
+                     Trueの場合、何もしない。
+    :type exist_ok: bool defaults to True
+    :returns: 作成したDBファイルのパス
+    :rtype: string
+    """
 
-def confirm_db(db_dir: str, db_name: str = "exec_history.db",
-               owner_uid: int = -1, owner_gid: int = -1):
-
-    init_sql_file = os.path.join(
-        os.path.dirname(__file__), 'init_log.sql')
-
-    with open(init_sql_file, 'r', encoding='utf8') as f:
+    with open(LOG_DB_INIT_SQL, 'r', encoding='utf8') as f:
         init_sql = f.read()
 
     db_path = os.path.join(db_dir, db_name)
-    exec_sql(db_path, init_sql.split(";"))
+    if os.path.isfile(db_path):
+        if exist_ok:
+            return db_path
+        else:
+            raise FileExistsError(f'DB file Already exists: {db_path}')
+
+    conn = sqlite3.connect(db_path)
+    with conn:
+        cur = conn.cursor()
+        for sql in init_sql.split(";"):
+            cur.execute(sql)
+
     os.chown(db_path, owner_uid, owner_gid)
     os.chmod(db_path, 0o0640)
     return db_path
 
 
-def insert_db(db_path: str, sql: str, values: list):
+def insert_db(db_path: str, table: str,
+              items: str, values: list) -> None:
+    """db(sqlite)にデータを登録する
+
+    :param db_path: dbファイルのパス
+    :type db_path: string
+    :param table: 挿入先テーブル名
+    :type table: string
+    :param items: 項目リスト e.g. [id, name]
+    :type items: list
+    :param values: 登録する値リスト 項目リストと順番が一致していること。
+      e.g. [[1, 'student01'], [2, 'student02']]
+    :type values: list
+    """
+    sql = f'insert or ignore into {table} ('
+    sql += ','.join(items)
+    sql += ') values ('
+    sql += ','.join('?' for _ in range(len(items)))
+    sql += ')'
+
     conn = sqlite3.connect(db_path, isolation_level="IMMEDIATE")
     with conn:
         cur = conn.cursor()
@@ -144,164 +243,189 @@ def insert_db(db_path: str, sql: str, values: list):
         cur.executemany(sql, values)
 
 
-def log2db(home: str = '/home'):
+def log2db(course: str, user_name: str,
+           home_dir: str = '/jupyter',
+           dt_from: datetime = DEFAULT_DT_FROM,
+           dt_to: datetime = None) -> str:
+    """ログファイルを読み取り、DBに登録する
+
+    :param course: コース名
+    :type course: string
+    :param user_name: 教師ユーザ名
+    :type user_name: string
+    :param home_dir: ホームディレクトリ
+    :type home_dir: string defaults to '/jupyter'
+    :param dt_from: 対象データの始点日時
+    :type dt_from: datetime defaults to datetime.datetime(1970, 1, 1, timezone.utc)
+    :param dt_to: 対象データの終点日時
+    :type dt_to: datetime defaults to datetime.now(timezone.utc)
+    :returns: 作成したDBファイルのパス
+    :rtype: string
     """
-    {
-        'teacher01': {
-            'home': '/jupyter/teacher01',
-            'courses': {
-                'course01': {
-                    'students': [('mcjt1', 'mcjt', '1', 'mcjt1@example.com', 'mcjt1')]
-                }
-            }
-        }
-    }
-    """
+
+    def _load_log_json(log_dir: str, cell_id: str) -> dict:
+        """ログ情報を読み取る
+        """
+        log_json = os.path.join(log_dir, cell_id, cell_id+'.json')
+        if not os.path.isfile(log_json):
+            return {}
+
+        with open(log_json, 'r', encoding='utf8') as f:
+            logs = json.load(f)
+
+        return logs
+
+    dt_to = dt_to if dt_to is not None else datetime.now(timezone.utc)
     original_file_dir = 'release'
-    
-    for user_home in os.scandir(home):
-        if not user_home.is_dir():
+    teacher_home = os.path.join(home_dir, user_name)
+    course_path = os.path.join(teacher_home, 'nbgrader', course)
+    if not os.path.isdir(course_path):
+        raise FileNotFoundError(os.path.join('nbgrader', course))
+
+    stat = os.stat(teacher_home)
+    log_db_path = create_db(course_path, owner_uid=stat.st_uid)
+    nbg_db_path = os.path.join(course_path, 'gradebook.db')
+    students = get_course_students(nbg_db_path, course)
+    assignments = get_course_assignments(nbg_db_path, course)
+    update_or_create_log_student(log_db_path, students)
+
+    # cell_idリストの作成
+    assign_info = dict()
+    for assignment_name in assignments:
+        if assignment_name not in assign_info:
+            assign_info[assignment_name] = dict(notebooks=list())
+
+        teacher_notebooks = glob.glob(os.path.join(course_path,
+                                            original_file_dir,
+                                            assignment_name, '*.ipynb'))
+
+        for notebook_path in teacher_notebooks:
+            if not os.path.isfile(notebook_path):
+                continue
+            with open(notebook_path, mode='r', encoding='utf8') as f:
+                cell_infos = get_cell_info(json.load(f)['cells'])
+            nb_name = os.path.basename(notebook_path)
+            update_or_create_cell_id(log_db_path,
+                                    nb_name,
+                                    assignment_name,
+                                    cell_infos)
+            assign_info[assignment_name]['notebooks'].append(
+                {nb_name: dict(cell_infos=cell_infos)})
+
+    # 学生のログを収集
+    for student in students:
+        student_local_course_dir = os.path.join(home_dir, student,
+                                                course)
+        if not os.path.isdir(student_local_course_dir):
             continue
 
-        nbgrader_root = os.path.join(user_home.path, 'nbgrader')
+        for assign_name, notebooks in assign_info.items():
+            student_local_assign_dir = os.path.join(
+                student_local_course_dir, assign_name)
 
-        if not os.path.isdir(nbgrader_root):
-            continue
-
-        courses = dict()
-        for course in os.scandir(nbgrader_root):
-            if not course.is_dir():
+            if not os.path.isdir(student_local_assign_dir):
+                # 課題未フェッチ
                 continue
-
-            dbfile = os.path.join(course.path, 'gradebook.db')
-            if not os.path.isfile(dbfile):
+            student_local_log_dir = os.path.join(
+                student_local_assign_dir, '.log')
+            if not os.path.isdir(student_local_log_dir):
+                # ログ出力無し
                 continue
-            stat = os.stat(user_home)
-            log_db_pass = confirm_db(course.path, owner_uid=stat.st_uid)
-
-            # コースの課題一覧と受講生一覧を取得
-            gb = Gradebook('sqlite:///' + dbfile, course.name)
-            students = [d.id for d in gb.students]
-            assignments = [d.name for d in gb.assignments]
-            courses[course.name] = dict(students=students,
-                                        assignments=assignments)
-            update_or_create_log_student(log_db_pass, students)
-
-            # meme_idリストの作成
-            assign_info = dict() # {assignment_name: [memeids]}
-            for assignment_name in assignments:
-                if assignment_name not in assign_info:
-                    assign_info[assignment_name] = dict(notebooks=list())
-
-                for f in os.scandir(
-                    os.path.join(course.path, original_file_dir, assignment_name)):
-
-                    if not f.is_file():
-                        continue
-                    if os.path.splitext(f)[1] != '.ipynb':
-                        continue
-                    with open(f, mode='r', encoding='utf8') as notebook:
-                        cell_infos = get_cell_info(json.load(notebook)['cells'])
-
-                    update_or_create_cell_id(log_db_pass,
-                                            f.name,
-                                            assignment_name,
-                                            cell_infos)
-                    assign_info[assignment_name]['notebooks'].append(
-                        {f.name: dict(cell_infos=cell_infos)})
-
-            for student in students:
-                student_name = student
-                student_local_course_dir = os.path.join(home, student_name,
-                                                        course.name)
-                if not os.path.isdir(student_local_course_dir):
+            for notebook in notebooks['notebooks']:
+                notebook_name = list(notebook.keys())[0]
+                student_local_notebook = os.path.join(
+                    student_local_assign_dir,
+                    notebook_name)
+                if not os.path.isfile(student_local_notebook):
+                    # Notebook不存在
                     continue
+                for cell_info in notebook[notebook_name]['cell_infos']:
+                    logs = _load_log_json(student_local_log_dir, cell_info['cell_id'])
 
-                for assign_name, notebooks in assign_info.items():
-                    student_local_assign_dir = os.path.join(
-                        student_local_course_dir, assign_name)
-                    if not os.path.isdir(student_local_assign_dir):
-                        continue
-                    student_local_log_dir = os.path.join(
-                        student_local_assign_dir, '.log')
-                    if not os.path.isdir(student_local_log_dir):
-                        continue
-                    for notebook in notebooks['notebooks']:
-                        notebook_name = list(notebook.keys())[0]
-                        student_local_notebook = os.path.join(
-                            student_local_assign_dir,
-                            notebook_name)
-                        if not os.path.isfile(student_local_notebook):
-                            continue
+                    if len(logs) > 0:
+                        update_or_create_log(log_db_path, notebook_name, assign_name,
+                                            student, cell_info['cell_id'], logs,
+                                             dt_from, dt_to)
 
-                        for cell_info in notebook[notebook_name]['cell_infos']:
-                            log_json = os.path.join(student_local_log_dir,
-                                                    cell_info['meme_id'],
-                                                    cell_info['meme_id']+'.json')
-                            logs = load_log_json(log_json, notebook_name,
-                                                 cell_info['section'])
-                            update_or_create_log(log_db_pass, notebook_name, assign_name,
-                                                 student_name, cell_info['meme_id'], logs)
+    return log_db_path
 
 
-def update_or_create_log_student(db_pass: str, students: list):
+def update_or_create_log_student(db_path: str, students: list):
+    """コースの学生一覧をDBに登録する
 
+    :param db_path: DBファイルのパス
+    :type db_path: string
+    :param students: 学生名リスト e.g. ['student01', 'student02',]
+    :type students: list
+    """
     if len(students) == 0:
         return
-
-    items = [
-        'id',
-    ]
+    table = 'student'
+    items = ['id',]
     values = [[d] for d in students]
-
-    sql = 'insert or ignore into student ('
-    sql += ','.join(items)
-    sql += ') values ('
-    sql += ','.join('?' for _ in range(len(items)))
-    sql += ')'
-    insert_db(db_pass, sql, values)
+    insert_db(db_path, table, items, values)
 
 
-def update_or_create_cell_id(db_pass: str, notebook_name: str,
+def update_or_create_cell_id(db_path: str, notebook_name: str,
                             assignment: str, cell_infos: list):
+    """コースの課題に設定されているノートブックから、コードセルのID一覧をDBに登録する
+
+    :param db_path: DBファイルのパス
+    :type db_path: string
+    :param notebook_name: ノートブック名
+    :type notebook_name: string
+    :param assignment: 課題名
+    :type assignment: string
+    :param cell_infos: セル情報リスト e.g. [{'cell_id': 'cell01', 'section': '1.1.1'}]
+    :type cell_infos: list
+    """
 
     if len(cell_infos) == 0:
         return
 
+    table = 'cell'
     items = [
         'id',
         'assignment',
         'section',
         'notebook_name',
     ]
-
     values = list()
     for cell_info in cell_infos:
         values.append([
-            cell_info['meme_id'],
+            cell_info['cell_id'],
             assignment,
             cell_info['section'],
             notebook_name,
         ])
-
-    sql = 'insert or ignore into cell ('
-    sql += ','.join(items)
-    sql += ') values ('
-    sql += ','.join('?' for _ in range(len(items)))
-    sql += ')'
-    insert_db(db_pass, sql, values)
-
-
-def jst2datetime(dt: str) -> datetime:
-    converted_dt = datetime.datetime.strptime(
-        dt.replace('(JST)', ' +0900'), '%Y-%m-%d %H:%M:%S %z')
-    return converted_dt
+    insert_db(db_path, table, items, values)
 
 
 def update_or_create_log(db_path: str,  notebook_name: str,
                          assignment: str, user_id: str,
-                         cell_id: str, logs: list):
+                         cell_id: str, logs: list, dt_from: datetime,
+                         dt_to: datetime):
+    """学生の実行履歴情報をDBに登録する
+    ログの実行完了時刻が指定日時内でない場合は登録しない。
 
+    :param db_path: DBファイルのパス
+    :type db_path: string
+    :param notebook_name: ノートブック名
+    :type notebook_name: string
+    :param assignment: 課題名
+    :type assignment: string
+    :param cell_infos: セル情報リスト e.g. [{'cell_id': 'cell01', 'section': '1.1.1'}]
+    :type cell_infos: list
+    :param dt_from: 対象データの始点日時
+    :type dt_from: datetime
+    :param dt_to: 対象データの終点日時
+    :type dt_to: datetime
+    """
+
+    if len(logs) == 0:
+        return
+
+    table = 'log'
     items = [
         'assignment',
         'student_id',
@@ -323,7 +447,11 @@ def update_or_create_log(db_path: str,  notebook_name: str,
     ]
 
     values = list()
+
     for i, log in enumerate(logs):
+
+        if jst2datetime(log['end']) > dt_to or dt_from > jst2datetime(log['end']):
+            continue
 
         values.append([
             assignment,
@@ -345,49 +473,5 @@ def update_or_create_log(db_path: str,  notebook_name: str,
             log['execute_reply_status'],
         ])
 
-    sql = 'insert or ignore into log ('
-    sql += ','.join(items)
-    sql += ') values ('
-    sql += ','.join('?' for _ in range(len(items)))
-    sql += ')'
-    insert_db(db_path, sql, values)
-
-
-def load_log_json(path: str, nb_name: str,
-                  section: str = '') -> dict:
-
-    if not os.path.isfile(path):
-        return {}
-
-    with open(path, 'r', encoding='utf8') as f:
-        logs = json.load(f)
-
-    for log in logs:
-        log['cell_section'] = section
-        log['notebook_name'] = nb_name
-
-    return logs
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--duration",
-        help="Duration(seconds) to collect log. default: 0(Not collect logs)",
-        default=60,
-        type=int
-    )
-    parser.add_argument(
-        "--home",
-        help="Home directory path",
-        default="/home",
-        type=str
-    )
-    args = parser.parse_args()
-
-    while True:
-        try:
-            log2db(args.home)
-            time.sleep(args.duration)
-        except KeyboardInterrupt:
-            print("interrupted")
+    if len(values) > 0:
+        insert_db(db_path, table, items, values)

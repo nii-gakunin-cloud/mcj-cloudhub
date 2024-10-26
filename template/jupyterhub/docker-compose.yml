@@ -12,7 +12,6 @@ services:
     ports:
       - 80:8000
     environment:
-      LOG_COLLECT_DURATION: {{ log_collect_duration }}
       DOCKER_NETWORK_NAME: {{swarm_network}}
       JUPYTERHUB_FQDN: {{jupyterhub_fqdn}}
       DB_USER: {{db_user}}

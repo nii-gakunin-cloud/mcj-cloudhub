@@ -103,9 +103,7 @@ if cull_server_idle_timeout > 0:
                 "read:users:activity",
                 "read:servers",
                 "delete:servers",
-                # "admin:users", # if using --cull-users
             ],
-            # assignment of role's permissions to:
             "services": ["jupyterhub-idle-culler-service"],
         }
     ]
@@ -119,19 +117,15 @@ if cull_server_idle_timeout > 0:
                 f"--cull-every={cull_server_every}",
                 f"--max-age={cull_server_max_age}",
             ],
-            # "admin": True,
         }
     ]
 
-log_collect_duration = int(os.getenv('LOG_COLLECT_DURATION', 0))
-if log_collect_duration > 0:
-    c.JupyterHub.services.append({
-        'name': 'log-collect-service',
-        'admin': True,
-        'api_token': 'super-secret',
-        'command': ['/usr/bin/python3', '/etc/jupyterhub/log_collect.py',
-                    '--duration', str(log_collect_duration), '--home', home_directory_root]
-    })
+c.JupyterHub.services.append({
+    'name': 'mcjapi',
+    'url': 'http://jupyterhub:10101',
+    'command': ['python3', '/etc/jupyterhub/handler.py'],
+    'admin': True,
+})
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     c.CryptKeeper.keys = [os.urandom(32)]
@@ -188,6 +182,7 @@ c.Authenticator.refresh_pre_spawn = True
 c.Authenticator.auth_refresh_age = 300
 # c.Authenticator.admin_users = jupyterhub_admin_users
 c.Authenticator.enable_auth_state = True
+c.Authenticator.manage_groups = True
 
 # -- configurations for lti1.3 --
 # Define issuer identifier of the LMS platform
@@ -810,10 +805,11 @@ def post_auth_hook(lti_authenticator, handler, authentication):
             The hook must always return the authentication dict
     """
     updated_auth_state = copy.deepcopy(authentication)
-    lmd_user_name = authentication['auth_state'][IMS_LTI13_KEY_MEMBER_EXT]['user_username']
-    if jupyterhub_admin_users is not None and lmd_user_name in jupyterhub_admin_users:
+    lms_user_name = authentication['auth_state'][IMS_LTI13_KEY_MEMBER_EXT]['user_username']
+    if jupyterhub_admin_users is not None and lms_user_name in jupyterhub_admin_users:
         updated_auth_state['admin'] = True
-
+    updated_auth_state['groups'] = [get_user_role(authentication['auth_state'])]
+    updated_auth_state['name'] = lms_user_name
     return updated_auth_state
 
 
