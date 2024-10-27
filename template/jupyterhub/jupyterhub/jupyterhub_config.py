@@ -754,6 +754,8 @@ def create_home_hook(spawner, auth_state):
     # ホームディレクトリ作成
     create_dir(user_home, mode=0o755, uid=uid_num, gid=role_config[lms_role]['gid_num'])
     if lms_role == Role.INSTRUCTOR.value:
+        shutil.copy(os.path.join(skelton_directory, 'README.md'),
+                    user_home)
         tools_dir = os.path.join(user_home, 'teacher_tools')
         if not os.path.isdir(tools_dir):
             shutil.copytree(os.path.join(skelton_directory, 'teacher_tools'),
