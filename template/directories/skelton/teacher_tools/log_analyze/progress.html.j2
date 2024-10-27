@@ -70,7 +70,6 @@
             <tr>
                 <td>{{ loop.index }}</td>
                 <td>{{ cell.section }}</td>
-{#                 {% for student_name, result in cell.student_results.items() %} #}
                 {% for student_name in users %}
                 {% if student_name in cell.student_results %}
                 <td class="state-{{ cell.student_results[student_name]['exec_info']['state'] }}"></td>
