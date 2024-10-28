@@ -162,6 +162,7 @@ def get_cell_info(cells: list) -> list:
             if cell_id is None:
                 continue
             cell_ids.append(dict(cell_id=cell_id['current'],
+                                 jupyter_cell_id=cell['id'],
                                  section=sections.get_current_section()))
         elif cell['cell_type'] == 'markdown':
             if len(cell['source']) == 0:
@@ -389,6 +390,7 @@ def update_or_create_cell_id(db_path: str, notebook_name: str,
         'assignment',
         'section',
         'notebook_name',
+        'jupyter_cell_id',
     ]
     values = list()
     for cell_info in cell_infos:
@@ -397,6 +399,7 @@ def update_or_create_cell_id(db_path: str, notebook_name: str,
             assignment,
             cell_info['section'],
             notebook_name,
+            cell_info['jupyter_cell_id'],
         ])
     insert_db(db_path, table, items, values)
 

@@ -53,7 +53,7 @@
     <h2>{{ assignment_name }}</h2>
     
     {% for notebook_name, cells in notebooks.items() %}
-    <p>{{ notebook_name }}</p>
+    <h2>【{{ notebook_name }}】</h2>
     
     <table>
         <thead>
@@ -68,11 +68,11 @@
         <tbody>
             {% for cell in cells %}
             <tr>
-                <td>{{ loop.index }}</td>
+                <td><a href="#cell-id={{ cell.jupyter_cell_id }}" onclick="highlightElement('cell-id={{ cell.jupyter_cell_id }}')">cell_{{ loop.index }}</a></td>
                 <td>{{ cell.section }}</td>
                 {% for student_name in users %}
                 {% if student_name in cell.student_results %}
-                <td class="state-{{ cell.student_results[student_name]['exec_info']['state'] }}"></td>
+                <td class="state-{{ cell.student_results[student_name]['exec_info']['state'] }}">{{ cell.student_results[student_name]['exec_info']['state'] }}</td>
                 {% else %}
                 <td class="state-undefined"></td>
                 {% endif %}
@@ -81,6 +81,25 @@
             {% endfor %}
         <tbody>
     </table>
+    {% include "html/"+assignment_name+"/"+notebook_name.replace(".ipynb", ".html") %}
+    <br><br><br>
     {% endfor %}
+    
+    <style>
+      .cellSelected {
+          background-color: yellow;
+          transition: background-color 1s ease;
+      }
+    </style>
+    <script>
+        function highlightElement(cell_id) {
+            const target = document.getElementById(cell_id);
+            target.classList.add("cellSelected");
+            setTimeout(() => {
+                target.classList.remove("cellSelected");
+            }, 5000);
+        }
+    </script>
+
 </body>
 </html>
