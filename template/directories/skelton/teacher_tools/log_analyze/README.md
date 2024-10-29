@@ -82,17 +82,17 @@ nbgraderを利用し、学生用課題ファイルの生成（`generate`）・�
 |   5 |                                | log_sequence                   | INTEGER                        | Yes      |                      |何回目の実行かを表す数値              |
 |   7 |                                | notebook_name                  | VARCHAR()                      |          |                      |ノートブック名                                |
 |   6 |                                | log_json                       | JSON                           |          |                      |ログファイル（.json）全体         |
-|   7 |                                | log_code                       | VARCHAR()                      |          |                      |                                |
-|   8 |                                | log_path                       | VARCHAR()                      |          |                      |                                |
-|   9 |                                | log_start                      | TIMESTAMP                      |          |                      |                                |
-|  10 |                                | log_end                        | TIMESTAMP                      |          |                      |                                |
-|  11 |                                | log_size                       | INTEGER                        |          |                      |                                |
-|  12 |                                | log_server_signature           | VARCHAR()                      |          |                      |                                |
-|  13 |                                | log_uid                        | INTEGER                        |          |                      |                                |
-|  14 |                                | log_gid                        | INTEGER                        |          |                      |                                |
-|  15 |                                | log_notebook_path              | VARCHAR()                      |          |                      |                                |
-|  16 |                                | log_lc_notebook_meme           | VARCHAR()                      |          |                      |                                |
-|  17 |                                | log_execute_reply_status       | VARCHAR()                      |          |                      |                                |
+|   7 |                                | log_code                       | VARCHAR()                      |          |                      |セルの内容                                |
+|   8 |                                | log_path                       | VARCHAR()                      |          |                      |ログファイルのパス                          |
+|   9 |                                | log_start                      | TIMESTAMP                      |          |                      |実行開始日時                                |
+|  10 |                                | log_end                        | TIMESTAMP                      |          |                      |実行終了日時                                |
+|  11 |                                | log_size                       | INTEGER                        |          |                      |ログファイルのサイズ                                |
+|  12 |                                | log_server_signature           | VARCHAR()                      |          |                      |サーバーの署名ID                                |
+|  13 |                                | log_uid                        | INTEGER                        |          |                      |ユーザのUID                                |
+|  14 |                                | log_gid                        | INTEGER                        |          |                      |ユーザのGID                                |
+|  15 |                                | log_notebook_path              | VARCHAR()                      |          |                      |実行したノートブックのパス                                |
+|  16 |                                | log_lc_notebook_meme           | VARCHAR()                      |          |                      |実行したノートブックのmeme_id                                |
+|  17 |                                | log_execute_reply_status       | VARCHAR()                      |          |                      |実行結果 'ok'/'error'                                |
 
 ### cell  
 
