@@ -88,11 +88,14 @@ def log_collect(user):
     course = req_data.get('course')
     dt_from = req_data.get('from')
     dt_to = req_data.get('to')
+    assignment = req_data.get('assignment')
     opt = {}
     if dt_from is not None:
         opt['dt_from'] = datetime.fromisoformat(dt_from)
     if dt_to is not None:
         opt['dt_to'] = datetime.fromisoformat(dt_to)
+    if assignment is not None:
+        opt['assignment'] = assignment
     if course is None:
         return jsonify({"message": "invalid parameters: course is missing"}), 400
     try:
@@ -104,6 +107,7 @@ def log_collect(user):
     res['db_path'] = db_path
     res['dt_from'] = opt.get('dt_from')
     res['dt_to'] = opt.get('dt_to')
+    res['assignment'] = opt.get('assignment')
     return jsonify(res)
 
 

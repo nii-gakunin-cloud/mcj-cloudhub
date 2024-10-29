@@ -1,11 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import glob
-import logging
 import json
 import os
 import re
-import sys
-import time
 
 from nbgrader.api import Gradebook
 import sqlite3
@@ -110,7 +107,7 @@ def get_cell_info(cells: list) -> list:
     ...         ]
     ...     }
     ... ])
-    [{'cell_id': 'cd9eab9a-90e4-11ef-aad1-02420a010038', 'section': '1'}]
+    [{'cell_id': 'cd9eab9a-90e4-11ef-aad1-02420a010038', 'jupyter_cell_id': '4855ae0b', 'section': '1'}]
     """
 
     class __NBSection():
@@ -247,7 +244,8 @@ def insert_db(db_path: str, table: str,
 def log2db(course: str, user_name: str,
            home_dir: str = '/jupyter',
            dt_from: datetime = DEFAULT_DT_FROM,
-           dt_to: datetime = None) -> str:
+           dt_to: datetime | None = None,
+           assignment: str | list = None) -> str:
     """ログファイルを読み取り、DBに登録する
 
     :param course: コース名
@@ -260,6 +258,8 @@ def log2db(course: str, user_name: str,
     :type dt_from: datetime defaults to datetime.datetime(1970, 1, 1, timezone.utc)
     :param dt_to: 対象データの終点日時
     :type dt_to: datetime defaults to datetime.now(timezone.utc)
+    :param assignment: 課題名 Noneの場合、コース内の全ての課題を対象とする
+    :type assignment: string
     :returns: 作成したDBファイルのパス
     :rtype: string
     """
@@ -280,6 +280,7 @@ def log2db(course: str, user_name: str,
     original_file_dir = 'release'
     teacher_home = os.path.join(home_dir, user_name)
     course_path = os.path.join(teacher_home, 'nbgrader', course)
+
     if not os.path.isdir(course_path):
         raise FileNotFoundError(os.path.join('nbgrader', course))
 
@@ -287,7 +288,16 @@ def log2db(course: str, user_name: str,
     log_db_path = create_db(course_path, owner_uid=stat.st_uid)
     nbg_db_path = os.path.join(course_path, 'gradebook.db')
     students = get_course_students(nbg_db_path, course)
-    assignments = get_course_assignments(nbg_db_path, course)
+    if assignment is not None:
+        # 課題の指定がある場合、「指定されたものかつnbgraderに登録されているもの」が対象
+        if isinstance(assignment, str):
+            specified_assignment = [assignment]
+        elif isinstance(assignment, list):
+            specified_assignment = assignment.copy()
+        assignments = list(set(specified_assignment) & set(get_course_assignments(nbg_db_path, course)))
+    else:
+        # 課題の指定が無い場合、nbgraderに登録されているものが全て対象
+        assignments = get_course_assignments(nbg_db_path, course)
     update_or_create_log_student(log_db_path, students)
 
     # cell_idリストの作成
