@@ -19,7 +19,7 @@ EOM
     )
 
     echo "$ldif" > /srv/jupyterhub/jupyterhub/ldap/ldifs/tmp.ldif
-    task_id=$(docker service ps "$4"_openldap --format '{{.ID}}')
+    task_id=$(docker service ps $4_openldap --filter "desired-state=running" --format '{{.ID}}')
     container_id=$(docker inspect --format '{{.Status.ContainerStatus.ContainerID}}' $task_id)
     docker exec $container_id ldapadd -x \
         -H ldap://localhost:1389 \

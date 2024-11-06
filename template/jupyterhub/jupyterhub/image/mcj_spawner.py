@@ -320,10 +320,10 @@ class SysUserSwarmSpawner(DockerSpawner):
                 dict(
                     NB_UID=self.user_options['uid_number'],
                     NB_GID=self.user_options['gid_number'],
-                    MOODLECOURSE=self.user_options['gid_number'],
-                    COURSEROLE=self.user_options['COURSEROLE'],
-                    TEACHER_GID=self.user_options['TEACHER_GID'],
-                    STUDENT_GID=self.user_options['STUDENT_GID'],
+                    MOODLECOURSE=self.user_options['course'],
+                    COURSEROLE=self.user_options['courserole'],
+                    TEACHER_GID=self.user_options['teacher_gid'],
+                    STUDENT_GID=self.user_options['student_gid'],
                     PATH=f'/{username}/testuser01/.local/bin:/jupyter/{username}/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin',
                 )
             )
@@ -333,8 +333,8 @@ class SysUserSwarmSpawner(DockerSpawner):
                  'target': f'/home/{username}',
                  'ReadOnly': False},
                 {'type': 'bind',
-                 'source': '/exchange/nbgrader/exchange/mcjh',
-                 'target': '/jupytershare/nbgrader/exchange/mcjh',
+                 'source': f'/exchange/nbgrader/exchange/{self.user_options["course"]}',
+                 'target': f'/jupytershare/nbgrader/exchange/{self.user_options["course"]}',
                  'ReadOnly': False}]
 
         return env

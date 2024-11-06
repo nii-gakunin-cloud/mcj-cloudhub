@@ -2,7 +2,7 @@
 
 delete_ldap () {
 
-    task_id=$(docker service ps "$2"_openldap --format '{{.ID}}')
+    task_id=$(docker service ps $2_openldap --filter "desired-state=running" --format '{{.ID}}')
     container_id=$(docker inspect --format '{{.Status.ContainerStatus.ContainerID}}' $task_id)
     docker exec $container_id ldapdelete -x \
         -H ldap://localhost:1389 \
