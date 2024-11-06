@@ -145,10 +145,10 @@ class MCJUserTest():
                     # URLがまだマッチしていない場合は無視
                     pass
 
-        except TimeoutException:
+        except TimeoutException as e:
             # 例外処理（ログインに失敗した場合）
             self.logger.error("user [%s]: Moodle login failed: '%s'", user_name, error_message)
-            raise e("user [%s]: Moodle login failed: '%s'", user_name, error_message)
+            raise TimeoutException(msg=f"user [{user_name}]: Moodle login failed: '{error_message}'") from e
 
         if self.auto_exit:
             self.driver.quit()
@@ -186,7 +186,7 @@ class MCJUserTest():
 
         current_window_count = len(self.driver.window_handles)
         self.driver.get(f"{self.moodle_url}/mod/lti/view.php?id={tool_id}")
-        WebDriverWait(self.driver, 10).until(EC.number_of_windows_to_be(
+        WebDriverWait(self.driver, 60).until(EC.number_of_windows_to_be(
             current_window_count + 1))
         self.switch_window()
         self.wait.until(EC.url_contains(
@@ -510,7 +510,7 @@ def main(user_info: dict,
             for k in info:
                 d[k] = info[k]
 
-            updated_json = json.dumps(d, indent=4)
+            updated_json = json.dumps(d, indent=4, ensure_ascii=False)
             with open(output, 'w', encoding='utf-8') as f:
                 f.write(updated_json)
 
