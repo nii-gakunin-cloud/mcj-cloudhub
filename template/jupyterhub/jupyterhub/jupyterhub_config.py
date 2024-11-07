@@ -307,7 +307,7 @@ def search_local_ldap(username, attributes: list = None):
             server,
             c.SysUserSwarmSpawner.ldap_manager_dn,
             password=c.SysUserSwarmSpawner.ldap_password,
-            read_only=False,
+            read_only=True,
             raise_exceptions=True,
         )
         conn.bind()
