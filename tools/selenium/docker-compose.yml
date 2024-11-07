@@ -11,7 +11,7 @@ services:
       SE_OPTS: "--sub-path /selenium"
       SE_NODE_MAX_SESSIONS: 100
       SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
-      SE_ENABLE_TRACING: false
+      SE_ENABLE_TRACING: "false"
     healthcheck:
       test: "curl -f http://localhost:4444/ || exit 1"
       interval: 5s

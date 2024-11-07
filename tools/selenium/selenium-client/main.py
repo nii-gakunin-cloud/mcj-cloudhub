@@ -185,11 +185,12 @@ class MCJUserTest():
     def select_lti_url(self, tool_id: int):
 
         current_window_count = len(self.driver.window_handles)
-        self.driver.get(f"{self.moodle_url}/mod/lti/view.php?id={tool_id}")
-        WebDriverWait(self.driver, 60).until(EC.number_of_windows_to_be(
+        script = f"window.open('{self.moodle_url}/mod/lti/launch.php?id={tool_id}', 'lti-{tool_id}');"
+        self.driver.execute_script(script)
+        WebDriverWait(self.driver, 600).until(EC.number_of_windows_to_be(
             current_window_count + 1))
         self.switch_window()
-        self.wait.until(EC.url_contains(
+        WebDriverWait(self.driver, 600).until(EC.url_contains(
             'user'))
 
         return self.driver.current_url
@@ -344,12 +345,12 @@ class MCJUserTest():
         self.driver.find_element(
             By.XPATH, "//button[@aria-label='Run']").click()
 
-        output_wrapper = WebDriverWait(cell, 300).until(
+        output_wrapper = WebDriverWait(cell, 600).until(
             EC.visibility_of_element_located(
                 (By.CLASS_NAME, "output_wrapper")),
             'Timeout waiting output to be visible'
         )
-        output_txt = WebDriverWait(output_wrapper, 300).until(
+        output_txt = WebDriverWait(output_wrapper, 600).until(
             EC.visibility_of_element_located((By.TAG_NAME, "pre")),
             'Timeout waiting output to be visible'
         ).text
@@ -544,7 +545,7 @@ def main(user_info: dict,
         try:
             current_url = ut.select_lti_url(tid)
         except TimeoutException as e:
-            result['error'] = f'Not found tool_id: {tid} in moodle'
+            result['error'] = f'Timeout to open Jupyter home: tool_id: {tid}'
             raise e
 
         # lab/tree 判別
