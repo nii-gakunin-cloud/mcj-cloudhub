@@ -6,7 +6,7 @@ delete_ldap () {
     container_id=$(docker inspect --format '{{.Status.ContainerStatus.ContainerID}}' $task_id)
     docker exec $container_id ldapdelete -x \
         -H ldap://localhost:1389 \
-        -w PassWordDesu \
+        -w $3 \
         -D "cn=Manager,dc=jupyterhub,dc=server,dc=sample,dc=jp" \
         "uid=$1,ou=People,dc=jupyterhub,dc=server,dc=sample,dc=jp"
 }
@@ -20,7 +20,7 @@ delete_jupyterhub_user () {
         -H "Authorization: token $2"
 }
 
-# username, uidnum, gidnum, servicename, jupyterhub token
-delete_ldap $1 $4
+# username, uidnum, gidnum, servicename, jupyterhub token, ldap passord
+delete_ldap $1 $4 $6
 delete_home_dir $1
 delete_jupyterhub_user $1 $5

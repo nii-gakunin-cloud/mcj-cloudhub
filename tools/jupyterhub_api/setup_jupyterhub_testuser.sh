@@ -24,7 +24,7 @@ EOM
     docker exec $container_id ldapadd -x \
         -H ldap://localhost:1389 \
         -D "cn=Manager,dc=jupyterhub,dc=server,dc=sample,dc=jp" \
-        -w PassWordDesu \
+        -w $5 \
         -f /ldifs/tmp.ldif
 }
 
@@ -40,7 +40,7 @@ add_user_to_Jupyterhub () {
         -d '{"name": "$1"}'
 }
 
-# username, uidnum, gidnum, servicename, jupyterhub token
-create_ldif $1 $2 $3 $4
+# username, uidnum, gidnum, servicename, jupyterhub token, ldap passord
+create_ldif $1 $2 $3 $4 $6
 create_home_dir $1 $2 $3
 add_user_to_Jupyterhub $1 $5
