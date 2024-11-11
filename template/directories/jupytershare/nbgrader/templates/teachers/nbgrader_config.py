@@ -29,6 +29,7 @@ c.CourseDirectory.db_url = GRADEBOOK_DB
 c.IncludeHeaderFooter.header = ''
 c.ExecutePreprocessor.timeout = 300
 c.NotebookClient.startup_timeout = 120
+c.CourseDirectory.ignore.extend(['.log', ])
 
 # デフォルトのnbgrader_config.pyに無い項目
 c.Exchange.path_includes_course = True

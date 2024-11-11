@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{ title }}</title>
+    <meta http-equiv="refresh" content="{{ html_auto_refresh_sec }}" />
+    <meta charset="UTF-8">
+    <style>
+        table {
+          border-collapse: collapse;
+          border: 2px solid rgb(140 140 140);
+          font-family: sans-serif;
+          font-size: 0.8rem;
+          letter-spacing: 1px;
+        }
+
+        caption {
+          caption-side: bottom;
+          padding: 10px;
+          font-weight: bold;
+        }
+
+        thead,
+        tfoot {
+          background-color: rgb(228 240 245);
+        }
+
+        th,
+        td {
+          border: 1px solid rgb(160 160 160);
+          padding: 8px 10px;
+        }
+
+        td:last-of-type {
+          text-align: center;
+        }
+        
+        td.state {
+          width: 10px;
+          height: 10px;
+        }
+        
+        td.state-ok {
+          background-color: rgb(169, 223, 3);
+        }
+        
+        td.state-error {
+          background-color: rgb(251, 165, 146);
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ course_name }}</h1>
+    <h2>{{ assignment_name }}</h2>
+    
+    {% for notebook_name, cells in notebooks.items() %}
+    <h2>【{{ notebook_name }}】</h2>
+    
+    <table>
+        <thead>
+            <tr>
+                <td>セル番号</td>
+                <td>項目番号</td>
+                {% for user in users %}
+                <td class="state">{{ user }}</td>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for cell in cells %}
+            <tr>
+                <td><a href="#cell-id={{ cell.jupyter_cell_id }}" onclick="highlightElement('cell-id={{ cell.jupyter_cell_id }}')">cell_{{ loop.index }}</a></td>
+                <td>{{ cell.section }}</td>
+                {% for student_name in users %}
+                {% if student_name in cell.student_results %}
+                <td class="state-{{ cell.student_results[student_name]['exec_info']['state'] }}">{{ cell.student_results[student_name]['exec_info']['state'] }}</td>
+                {% else %}
+                <td class="state-undefined"></td>
+                {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        <tbody>
+    </table>
+    {% include "html/"+assignment_name+"/"+notebook_name.replace(".ipynb", ".html") %}
+    <br><br><br>
+    {% endfor %}
+    
+    <style>
+      .cellSelected {
+          background-color: yellow;
+          transition: background-color 1s ease;
+      }
+    </style>
+    <script>
+        function highlightElement(cell_id) {
+            const target = document.getElementById(cell_id);
+            target.classList.add("cellSelected");
+            setTimeout(() => {
+                target.classList.remove("cellSelected");
+            }, 5000);
+        }
+    </script>
+
+</body>
+</html>

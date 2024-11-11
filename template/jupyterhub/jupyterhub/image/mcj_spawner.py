@@ -314,6 +314,29 @@ class SysUserSwarmSpawner(DockerSpawner):
             )
         )
 
+        if self.user_options.get('uid_number'):
+            username = self.login_user_name if self.login_user_name else self.user.name
+            env.update(
+                dict(
+                    NB_UID=self.user_options['uid_number'],
+                    NB_GID=self.user_options['gid_number'],
+                    MOODLECOURSE=self.user_options['course'],
+                    COURSEROLE=self.user_options['courserole'],
+                    TEACHER_GID=self.user_options['teacher_gid'],
+                    STUDENT_GID=self.user_options['student_gid'],
+                    PATH=f'/{username}/testuser01/.local/bin:/jupyter/{username}/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin',
+                )
+            )
+            self.extra_container_spec['mounts'] = [
+                {'type': 'bind',
+                 'source': f'/jupyter/{username}',
+                 'target': f'/home/{username}',
+                 'ReadOnly': False},
+                {'type': 'bind',
+                 'source': f'/exchange/nbgrader/exchange/{self.user_options["course"]}',
+                 'target': f'/jupytershare/nbgrader/exchange/{self.user_options["course"]}',
+                 'ReadOnly': False}]
+
         return env
 
     async def create_object(self):

@@ -36,7 +36,7 @@ IMS_LTI13_NRPS_TOKEN_SCOPE = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/scope/cont
 IMS_LTI13_NRPS_ASSERT_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 IMS_LTI13_KEY_NRPS = f'https://{IMS_LTI13_FQDN}/spec/lti-nrps/claim/namesroleservice'
 
-DEFUALT_IDLE_TIMEOUT = 600
+DEFUALT_IDLE_TIMEOUT = 1800
 DEFUALT_CULL_EVERY = 60
 DEFUALT_SERVER_MAX_AGE = 0
 DEFUALT_COOKIE_MAX_AGE_DAYS = 0.25
@@ -103,9 +103,7 @@ if cull_server_idle_timeout > 0:
                 "read:users:activity",
                 "read:servers",
                 "delete:servers",
-                # "admin:users", # if using --cull-users
             ],
-            # assignment of role's permissions to:
             "services": ["jupyterhub-idle-culler-service"],
         }
     ]
@@ -119,9 +117,15 @@ if cull_server_idle_timeout > 0:
                 f"--cull-every={cull_server_every}",
                 f"--max-age={cull_server_max_age}",
             ],
-            # "admin": True,
         }
     ]
+
+c.JupyterHub.services.append({
+    'name': 'mcjapi',
+    'url': 'http://jupyterhub:10101',
+    'command': ['python3', '/etc/jupyterhub/handler.py'],
+    'admin': True,
+})
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     c.CryptKeeper.keys = [os.urandom(32)]
@@ -178,6 +182,7 @@ c.Authenticator.refresh_pre_spawn = True
 c.Authenticator.auth_refresh_age = 300
 # c.Authenticator.admin_users = jupyterhub_admin_users
 c.Authenticator.enable_auth_state = True
+c.Authenticator.manage_groups = True
 
 # -- configurations for lti1.3 --
 # Define issuer identifier of the LMS platform
@@ -302,7 +307,7 @@ def search_local_ldap(username, attributes: list = None):
             server,
             c.SysUserSwarmSpawner.ldap_manager_dn,
             password=c.SysUserSwarmSpawner.ldap_password,
-            read_only=False,
+            read_only=True,
             raise_exceptions=True,
         )
         conn.bind()
@@ -495,8 +500,8 @@ def create_nbgrader_path(course_short_name,
         autotests_yml = f'{nbgrader_template_path}/autotests.yml'
 
         create_dir(instructor_root_path, uid=user_uid_num,
-                   gid=gid_teachers)
-        create_dir(course_path, uid=user_uid_num, gid=gid_teachers)
+                   gid=gid_teachers, mode=0o0755)
+        create_dir(course_path, uid=user_uid_num, gid=gid_teachers, mode=0o0755)
         create_dir(course_autograded_path, mode=0o0755, uid=user_uid_num,
                    gid=groupid)
         create_dir(course_release_path, mode=0o0755, uid=user_uid_num,
@@ -698,6 +703,23 @@ def get_user_role(auth_state):
     return role
 
 
+def set_permission_recursive(path: str, mode = None,
+                             uid: int = -1, gid: int = -1):
+    
+    for root, dirs, files in os.walk(path):
+        for d in dirs:
+            p = os.path.join(root, d)
+            if mode is not None:
+                os.chmod(p, mode)
+            os.chown(p, uid, gid)
+
+        for f in files:
+            p = os.path.join(root, f)
+            if mode is not None:
+                os.chmod(p, mode)
+            os.chown(p, uid, gid)
+
+
 def create_home_hook(spawner, auth_state):
 
     if not auth_state:
@@ -729,12 +751,16 @@ def create_home_hook(spawner, auth_state):
     else:
         update_ldap(lms_username, role_config[lms_role]['gid_num'])
 
-    if not os.path.isdir(user_home) \
-            and not os.path.isfile(user_home):
-
-        shutil.copytree(skelton_directory, user_home)
-        if os.path.isdir(user_home):
-            change_owner(user_home, uid_num, role_config[lms_role]['gid_num'])
+    # ホームディレクトリ作成
+    create_dir(user_home, mode=0o755, uid=uid_num, gid=role_config[lms_role]['gid_num'])
+    if lms_role == Role.INSTRUCTOR.value:
+        shutil.copy(os.path.join(skelton_directory, 'README.md'),
+                    user_home)
+        tools_dir = os.path.join(user_home, 'teacher_tools')
+        if not os.path.isdir(tools_dir):
+            shutil.copytree(os.path.join(skelton_directory, 'teacher_tools'),
+                            tools_dir)
+            set_permission_recursive(tools_dir, uid=uid_num)
 
     spawner.environment = {
         'MOODLECOURSE': auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['label'],
@@ -743,9 +769,12 @@ def create_home_hook(spawner, auth_state):
         'PWD': user_home,
         'TEACHER_GID': gid_teachers,
         'STUDENT_GID': gid_students,
+        'JUPYTERHUB_FQDN': jupyterhub_fqdn,
         'PATH': f'{user_home}/.local/bin:' +
                 f'{user_home}/bin:/usr/local/bin:/usr/local/sbin:' +
-                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin'}
+                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:' +
+                f'/home/{lms_username}/tools',
+    }
 
     spawner.cpu_limit = role_config[lms_role]['cpu_limit']
     spawner.mem_limit = role_config[lms_role]['mem_limit']
@@ -759,6 +788,7 @@ def create_home_hook(spawner, auth_state):
     if isinstance(mount_volumes, list) and len(mount_volumes) != 0:
         spawner.extra_container_spec['mounts'] = mount_volumes
         spawner.extra_container_spec['user'] = '0'
+
     spawner.login_user_name = lms_username
     spawner.user_id = uid_num
     spawner.group_id = role_config[lms_role]['gid_num']
@@ -777,10 +807,11 @@ def post_auth_hook(lti_authenticator, handler, authentication):
             The hook must always return the authentication dict
     """
     updated_auth_state = copy.deepcopy(authentication)
-    lmd_user_name = authentication['auth_state'][IMS_LTI13_KEY_MEMBER_EXT]['user_username']
-    if jupyterhub_admin_users is not None and lmd_user_name in jupyterhub_admin_users:
+    lms_user_name = authentication['auth_state'][IMS_LTI13_KEY_MEMBER_EXT]['user_username']
+    if jupyterhub_admin_users is not None and lms_user_name in jupyterhub_admin_users:
         updated_auth_state['admin'] = True
-
+    updated_auth_state['groups'] = [get_user_role(authentication['auth_state'])]
+    updated_auth_state['name'] = lms_user_name
     return updated_auth_state
 
 

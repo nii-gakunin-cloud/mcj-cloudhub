@@ -39,16 +39,17 @@ RUN jupyter nbextensions_configurator enable --user
 RUN jupyter serverextension enable --sys-prefix --py jupyter_nbextensions_configurator
 
 RUN pip3 install jupyterlab-language-pack-ja-JP
-RUN pip3 install nbgrader==0.8.5 sqlalchemy==1.4.49 jinja2==3.0.3
+RUN pip3 install nbgrader==0.8.5 sqlalchemy==1.4.49 jinja2==3.0.3 jupyterhub==4.0.2
 RUN pip3 install git+https://github.com/NII-cloud-operation/Jupyter-multi_outputs
 RUN pip3 install git+https://github.com/NII-cloud-operation/Jupyter-LC_nblineage
-
-RUN jupyter nbextension install --sys-prefix --py nbgrader --overwrite
-RUN jupyter nbextension enable --sys-prefix --py nbgrader
-
-
+RUN pip install git+https://github.com/NII-cloud-operation/Jupyter-LC_index
 RUN pip install git+https://github.com/NII-cloud-operation/Jupyter-LC_wrapper
 RUN python -m lc_wrapper.ipython.install
+
+RUN jupyter nbextension install --sys-prefix --py notebook_index
+RUN jupyter nbextension enable --sys-prefix --py notebook_index
+RUN jupyter nbextension install --sys-prefix --py nbgrader --overwrite
+RUN jupyter nbextension enable --sys-prefix --py nbgrader
 RUN jupyter nbextension install --py lc_wrapper --sys-prefix
 RUN jupyter nbextension enable --py lc_wrapper --sys-prefix
 RUN jupyter nbextension disable --sys-prefix formgrader/main --section=tree

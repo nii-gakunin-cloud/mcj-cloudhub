@@ -1,0 +1,37 @@
+services:
+  selenium-executer:
+    container_name: selenium-executer
+#     image: selenium/standalone-firefox:4.23.1-20240820
+    image: selenium/standalone-chrome:4.23.1-20240820
+    ports:
+      - 4444:4444
+      - 7900:7900
+    shm_size: "2gb"
+    environment:
+      SE_OPTS: "--sub-path /selenium"
+      SE_NODE_MAX_SESSIONS: 100
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+      SE_ENABLE_TRACING: "false"
+    healthcheck:
+      test: "curl -f http://localhost:4444/ || exit 1"
+      interval: 5s
+      retries: 3
+  selenium-client:
+    container_name: selenium-client
+    build:
+      context: ./selenium-client
+    volumes:
+      - type: bind
+        source: ./accounts.yaml
+        target: /app/accounts.yaml
+      - ./selenium-client/result:/app/result
+    command:
+      - python
+      - /app/main.py
+      - /app/accounts_file.yaml
+      - http://localhost/
+      - http://selenium-executer:4444/wd/hub
+      - -i 0
+    depends_on:
+      selenium-executer:
+        condition: service_healthy

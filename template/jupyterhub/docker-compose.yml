@@ -9,8 +9,6 @@ services:
       - /jupyter:/jupyter
     networks:
       - {{swarm_network}}
-    ports:
-      - 80:8000
     environment:
       DOCKER_NETWORK_NAME: {{swarm_network}}
       JUPYTERHUB_FQDN: {{jupyterhub_fqdn}}
@@ -94,8 +92,6 @@ services:
           - node.role == manager
   mariadb:
     image: mariadb:10.5.15
-    ports:
-      - "3306:3306"
     environment:
       MYSQL_ROOT_PASSWORD: {{db_password}}
       MYSQL_USER: {{db_user}}
