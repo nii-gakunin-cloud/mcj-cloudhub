@@ -140,6 +140,8 @@ def get_cell_info(cells: list) -> list:
             if len(self.current) <= level:
                 diff = [0 for i in range(level - len(self.current))]
                 self.current.extend(diff)
+            else:
+                self.current[level:] = []
             self.current[level-1] += 1
 
         def get_current_section(self):
