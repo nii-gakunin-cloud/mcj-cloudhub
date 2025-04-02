@@ -26,11 +26,12 @@ services:
       LMS_API_TOKEN: {{lms_api_token}}
       HOME_DIR_ROOT: {{home_directory_root}}
       SHARE_DIR_ROOT: {{share_directory_root}}
-      NOTEBOOK_IMAGE: {{singleuser_image}}:{{singleuser_image_tag}}
+      NOTEBOOK_IMAGE: {{singleuser_image}}
       LMS_PLATFORM_ID: {{lms_platform_id}}
       LMS_CLIENT_ID: {{lms_cliend_id}}
       LTI_USERNAME_KEY: {{lti_username_key}}
       DEFAULT_URL: {{default_url}}
+      JUPYTERHUB_BASE_URL: {{jupyterhub_base_url}}
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:
       replicas: 1
@@ -110,6 +111,9 @@ networks:
   {{swarm_network}}:
     driver: overlay
     name: {{swarm_network}}
+{% if moodle_host is defined %}
+    attachable: true
+{% endif %}
     ipam:
       config:
         - subnet: {{jupyterhub_backend}}

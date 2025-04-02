@@ -1,2 +1,2 @@
 - name: build image
-  command: "docker build {{notebook_image_dir}}/{{singleuser_image_tag}} -t {{singleuser_image}}:{{singleuser_image_tag}}"
+  command: "docker build {{notebook_image_dir}}/{{singleuser_image_tag}} -t {{singleuser_image}}"

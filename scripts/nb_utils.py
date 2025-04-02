@@ -323,7 +323,7 @@ def setup_nb_workdir(work_dir):
     work = Path(work_dir)
     if not work.exists():
         work.mkdir(parents=True, exist_ok=True)
-    for sub_dir in ["notebooks/images", "scripts", "playbooks", "template"]:
+    for sub_dir in ["notebooks/images", "scripts", "playbooks", "template", "moodle"]:
         dst_dir = (work / Path(sub_dir).name).resolve()
         src_dir = Path(sub_dir).resolve()
         if src_dir.exists() and not dst_dir.exists():

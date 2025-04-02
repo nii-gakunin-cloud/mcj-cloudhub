@@ -1,0 +1,54 @@
+# Copyright Broadcom, Inc. All Rights Reserved.
+# SPDX-License-Identifier: APACHE-2.0
+
+services:
+  mdldb:
+    image: docker.io/bitnami/mariadb:11.4
+    environment:
+      - MARIADB_USER=bn_moodle
+      - MARIADB_PASSWORD=bitnami
+      - MARIADB_ROOT_PASSWORD={{ moodle_db_password }}
+      - MARIADB_DATABASE=bitnami_moodle
+      - MARIADB_CHARACTER_SET=utf8mb4
+      - MARIADB_COLLATE=utf8mb4_unicode_ci
+    volumes:
+      - 'mdldb_data:/bitnami/mdldb'
+    networks:
+      - {{ swarm_network }}
+  moodle:
+    build:
+      context: moodle
+      dockerfile: Dockerfile
+      args:
+        - EXTRA_LOCALES=ja_JP.UTF-8 UTF-8
+    environment:
+      - MOODLE_DATABASE_HOST=mdldb
+      - MOODLE_DATABASE_PORT_NUMBER=3306
+      - MOODLE_DATABASE_USER=root
+      - MOODLE_DATABASE_NAME=bitnami_moodle
+      - MOODLE_DATABASE_PASSWORD={{ moodle_db_password }}
+      - ALLOW_EMPTY_PASSWORD=yes
+      - MOODLE_HOST={{ moodle_host }}
+      - MOODLE_REVERSEPROXY=true
+      - MOODLE_USERNAME={{ moodle_admin_name }}
+      - MOODLE_EMAIL={{ moodle_admin_email }}
+      - MOODLE_PASSWORD={{ moodle_admin_password }}
+      - MOODLE_LANG=ja
+      #- BITNAMI_DEBUG=true # 詳細ログ出力
+    volumes:
+      - 'moodle_data:/bitnami/moodle'
+      - 'moodledata_data:/bitnami/moodledata'
+    depends_on:
+      - mdldb
+    networks:
+      - {{ swarm_network }}
+volumes:
+  mdldb_data:
+    driver: local
+  moodle_data:
+    driver: local
+  moodledata_data:
+    driver: local
+networks:
+  {{ swarm_network }}:
+    external: true

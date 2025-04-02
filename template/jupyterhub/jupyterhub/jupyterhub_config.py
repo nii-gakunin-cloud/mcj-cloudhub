@@ -78,6 +78,8 @@ with open('/etc/jupyterhub/jupyterhub_params.yaml', 'r', encoding="utf-8") as ym
 
 c = get_config() # noqa
 
+c.JupyterHub.base_url = os.getenv('JUPYTERHUB_BASE_URL', '/')
+
 # cookie max-age (days) is 6 hours
 c.JupyterHub.cookie_max_age_days = config.get(
     'cookie_max_age_days', DEFUALT_COOKIE_MAX_AGE_DAYS)
