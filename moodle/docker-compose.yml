@@ -15,6 +15,7 @@ services:
       - 'mdldb_data:/bitnami/mdldb'
     networks:
       - {{ swarm_network }}
+    restart: always
   moodle:
     build:
       context: moodle
@@ -27,7 +28,6 @@ services:
       - MOODLE_DATABASE_USER=root
       - MOODLE_DATABASE_NAME=bitnami_moodle
       - MOODLE_DATABASE_PASSWORD={{ moodle_db_password }}
-      - ALLOW_EMPTY_PASSWORD=yes
       - MOODLE_HOST={{ moodle_host }}
       - MOODLE_REVERSEPROXY=true
       - MOODLE_USERNAME={{ moodle_admin_name }}
@@ -42,6 +42,7 @@ services:
       - mdldb
     networks:
       - {{ swarm_network }}
+    restart: always
 volumes:
   mdldb_data:
     driver: local
