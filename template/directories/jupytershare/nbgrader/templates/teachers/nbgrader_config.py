@@ -27,7 +27,7 @@ c.NbGrader.logfile = f'{NBG_USER_DIR}/nbgrader.log'
 c.CourseDirectory.course_id = COURSE_NAME_SHORT
 c.CourseDirectory.db_url = GRADEBOOK_DB
 c.IncludeHeaderFooter.header = ''
-c.ExecutePreprocessor.timeout = 300
+c.ExecutePreprocessor.timeout = os.getenv('NBGRADER_AUTOGRADE_EXEC_TIMEOUT', 10)
 c.NotebookClient.startup_timeout = 120
 c.CourseDirectory.ignore.extend(['.log', ])
 

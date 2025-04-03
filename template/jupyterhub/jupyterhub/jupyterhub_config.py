@@ -124,7 +124,7 @@ if cull_server_idle_timeout > 0:
 
 c.JupyterHub.services.append({
     'name': 'mcjapi',
-    'url': 'http://jupyterhub:10101',
+    'url': f'http://jupyterhub:10101/{c.JupyterHub.base_url}',
     'command': ['python3', '/etc/jupyterhub/handler.py'],
     'admin': True,
 })
