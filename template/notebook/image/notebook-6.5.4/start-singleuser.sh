@@ -34,6 +34,17 @@ fi
 if [ ! -z "$JPY_HUB_API_URL" ]; then
     NOTEBOOK_ARGS="--hub-api-url=$JPY_HUB_API_URL $NOTEBOOK_ARGS"
 fi
+if [ ! -z "$ENABLE_CUSTOM_SETUP" ]; then
+    if [ -f /opt/local/sbin/custom_installer.sh ]; then
+        if [ "$COURSEROLE" == "Instructor" ]; then
+            echo "Execute custom installer at $(date)" > ~/custom_installer.log
+            source /opt/local/sbin/custom_installer.sh >> ~/custom_installer.log 2>&1 || true
+        else
+            source /opt/local/sbin/custom_installer.sh || true
+        fi
+    fi
+fi
+
 NOTEBOOK_BIN="jupyterhub-singleuser"
 
 . /usr/local/bin/start.sh $NOTEBOOK_BIN $NOTEBOOK_ARGS "$@"

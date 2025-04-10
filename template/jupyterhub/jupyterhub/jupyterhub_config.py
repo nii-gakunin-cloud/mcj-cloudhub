@@ -631,6 +631,26 @@ def create_userdata(spawner,
             if not os.path.exists(ext_course_path):
                 raise CreateDirectoryException(ext_course_path)
 
+            if not os.path.exists(f'{share_directory_root}/{course_shortname}/opt/local/bin'):
+                create_dir(f'{share_directory_root}/{course_shortname}/opt/local/bin', mode=0o0755, uid=uid_num,
+                       gid=root_gid_num)
+
+            if not os.path.exists(f'{share_directory_root}/{course_shortname}/opt/local/sbin'):
+                create_dir(f'{share_directory_root}/{course_shortname}/opt/local/sbin', mode=0o0755, uid=uid_num,
+                       gid=root_gid_num)
+
+            mount_volumes.append(
+              {'type': 'bind',
+               'source': f'{share_directory_root}/{course_shortname}/opt/local/sbin',
+               'target': '/opt/local/sbin',
+               'ReadOnly': False})
+        else:
+            mount_volumes.append(
+              {'type': 'bind',
+               'source': f'{share_directory_root}/{course_shortname}/opt/local/sbin',
+               'target': '/opt/local/sbin',
+               'ReadOnly': True})
+
         mount_volumes.append(
             {'type': 'bind',
              'source': share_directory_root + '/class/' + course_shortname,
@@ -770,10 +790,7 @@ def create_home_hook(spawner, auth_state):
         'TEACHER_GID': gid_teachers,
         'STUDENT_GID': gid_students,
         'JUPYTERHUB_FQDN': jupyterhub_fqdn,
-        'PATH': f'{user_home}/.local/bin:' +
-                f'{user_home}/bin:/usr/local/bin:/usr/local/sbin:' +
-                '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:' +
-                f'/home/{lms_username}/tools',
+        'ENABLE_CUSTOM_SETUP': 'yes',
     }
 
     spawner.cpu_limit = role_config[lms_role]['cpu_limit']

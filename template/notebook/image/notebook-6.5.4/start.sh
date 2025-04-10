@@ -72,7 +72,15 @@ if [ $(id -u) == 0 ] ; then
         jupyter nbextension enable --sys-prefix create_assignment/main
         jupyter labextension enable nbgrader:formgrader
         jupyter labextension enable nbgrader:create-assignment
+
+        if [ ! -z "$ENABLE_CUSTOM_SETUP" ]; then
+            if [ ! -e ~/local ]; then
+                ln -s /opt/local ~/local
+            fi
+        fi
     fi
+    export JUPYTER_CONFIG_PATH=/jupyter/$NB_USER/nbgrader/$MOODLECOURSE:$JUPYTER_CONFIG_PATH
+    export PATH=/opt/local/bin:$NB_USER/.local/bin:$NB_USER/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:/home/$NB_USER/tools:$PATH
 
     # Add $CONDA_DIR/bin to sudo secure_path
     sed -r "s#Defaults\s+secure_path\s*=\s*\"?([^\"]+)\"?#Defaults secure_path=\"\1:$CONDA_DIR/bin\"#" /etc/sudoers | grep secure_path > /etc/sudoers.d/path
