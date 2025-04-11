@@ -5,4 +5,4 @@
   - debug:
       msg: "{{ item }}"
     loop: "{{ ansible_facts.all_ipv4_addresses }}"
-    failed_when: item | ipaddr(jupyterhub_backend)
+    failed_when: item | ansible.utils.ipaddr(jupyterhub_backend)
