@@ -9,6 +9,8 @@ dns1=`resolvectl dns ${netif} | awk '{print $4}'`
 dns2=`resolvectl dns ${netif} | awk '{print $5}'`
 defroute=`ip route list default | awk '{print $3}'`
 
+sudo chmod -R 600 /etc/netplan/
+
 echo "DNS=${dns1}" | sudo tee -a /etc/systemd/resolved.conf
 if [ -n "${dns2}" ]; then
     echo "FallbackDNS=${dns2}" | sudo tee -a /etc/systemd/resolved.conf
@@ -22,4 +24,4 @@ sudo netplan set ethernets.${netif}.routes="[{to: default, via: ${defroute} }]"
 sudo netplan set ethernets.ens192.dhcp-identifier=mac
 sudo netplan set ethernets.ens192.dhcp4=true
 sudo rm -f /etc/netplan/mdx.yaml
-echo 'netplan apply' | sudo at now+1min
+sudo netplan apply
