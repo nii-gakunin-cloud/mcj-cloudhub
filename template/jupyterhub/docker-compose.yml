@@ -11,17 +11,17 @@ services:
       - {{swarm_network}}
     environment:
       DOCKER_NETWORK_NAME: {{swarm_network}}
-      JUPYTERHUB_FQDN: {{jupyterhub_fqdn}}
+      JUPYTERHUB_FQDN: {{master_fqdn}}
       DB_USER: {{db_user}}
       DB_PASSWORD: {{db_password}}
+      LDAP_ADMIN: {{ldap_admin}}
+      LDAP_PASSWORD: {{ldap_password}}
       EMAIL_DOMAIN: {{email_domain}}
       JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users}}"
       CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}}
       TEACHER_GID: {{gid_teacher}}
       STUDENT_GID: {{gid_student}}
       NB_NODE_ROLE: {{node_role}}
-      LDAP_ADMIN: {{ldap_admin}}
-      LDAP_PASSWORD: {{ldap_password}}
       LTI_METHOD: {{get_course_member_method}}
       LMS_API_TOKEN: {{lms_api_token}}
       HOME_DIR_ROOT: {{home_directory_root}}
@@ -71,7 +71,7 @@ services:
       placement:
         constraints:
           - node.role == manager
-  openldap:
+  ldap:
     image: bitnami/openldap:2.5.14
     environment:
       - LDAP_SKIP_DEFAULT_TREE=yes

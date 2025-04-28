@@ -18,10 +18,6 @@ ENV LANGUAGE ja_JP:ja
 ENV LC_ALL ja_JP.UTF-8
 
 # setup for jupyter
-RUN rm -fr /usr/local/bin/start.sh && rm -fr /usr/local/bin/start-singleuser.sh
-ADD start.sh /usr/local/bin/start.sh
-ADD start-singleuser.sh /usr/local/bin/start-singleuser.sh
-RUN chmod 4755 /usr/local/bin/start.sh && chmod 4755 /usr/local/bin/start-singleuser.sh
 RUN DEBIAN_FRONTEND=noninteractive apt-get install -qq libnss-ldap libpam-ldap ldap-utils
 ADD ldap-auth-config /etc/auth-client-config/profile.d/ldap-auth-config
 RUN cp /etc/nsswitch.conf /etc/nsswitch.conf.org
@@ -29,7 +25,7 @@ RUN sed -e "s/^passwd:.*$/passwd:         files systemd ldap/g" /etc/nsswitch.co
 RUN rm -fr /etc/nsswitch.conf.org
 RUN mkdir /jupytershare
 ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/bin/:/usr/sbin:/bin:/sbin:${PATH}
-ADD nbgrader_config.py /etc/jupyter/nbgrader_config.py
+ADD nbgrader/nbgrader_config.py /etc/jupyter/nbgrader_config.py
 RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
 ADD ldap.conf /etc/ldap.conf
 
@@ -45,6 +41,7 @@ RUN pip3 install git+https://github.com/NII-cloud-operation/Jupyter-LC_nblineage
 RUN pip install git+https://github.com/NII-cloud-operation/Jupyter-LC_index
 RUN pip install git+https://github.com/NII-cloud-operation/Jupyter-LC_wrapper
 RUN python -m lc_wrapper.ipython.install
+RUN pip install --upgrade jupyter-server
 
 RUN jupyter nbextension install --sys-prefix --py notebook_index
 RUN jupyter nbextension enable --sys-prefix --py notebook_index
@@ -74,6 +71,11 @@ RUN sed -i -e 's/return 660 if self\.coursedir\.groupshared else 640/return 664 
 HEALTHCHECK NONE
 RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js
 RUN rm /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
-ADD manage_assignments.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js
-ADD manage_submissions.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
-ADD gradebook_assignments.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js
+ADD nbgrader/manage_assignments.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js
+ADD nbgrader/manage_submissions.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js
+ADD nbgrader/gradebook_assignments.js /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js
+
+ADD start-notebook-mcj.sh /usr/local/bin/start-notebook-mcj.sh
+ADD start-singleuser-mcj.sh /usr/local/bin/start-singleuser-mcj.sh
+RUN chmod 4755 /usr/local/bin/start-notebook-mcj.sh /usr/local/bin/start-singleuser-mcj.sh
+CMD ["start-notebook-mcj.sh"]

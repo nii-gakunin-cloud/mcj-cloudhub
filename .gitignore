@@ -9,3 +9,4 @@ hosts
 inventory.yml
 notebooks.svg
 work*
+deploy_vm_for_vcnode.ipynb
