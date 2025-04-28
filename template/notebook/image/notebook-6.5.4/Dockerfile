@@ -24,7 +24,8 @@ RUN cp /etc/nsswitch.conf /etc/nsswitch.conf.org
 RUN sed -e "s/^passwd:.*$/passwd:         files systemd ldap/g" /etc/nsswitch.conf.org | sed -e "s/^group:.*$/group:files systemd ldap/g" - | sed -e "s/^shadow:.*$/shadow:         files ldap/g" - > /etc/nsswitch.conf
 RUN rm -fr /etc/nsswitch.conf.org
 RUN mkdir /jupytershare
-ENV PATH=/usr/local/bin:/usr/local/sbin:/usr/bin/:/usr/sbin:/bin:/sbin:${PATH}
+RUN mkdir -p /jupytershare /opt/local/bin
+ENV PATH=/opt/local/bin:/usr/local/bin:/usr/local/sbin:/usr/bin/:/usr/sbin:/bin:/sbin:${PATH}
 ADD nbgrader/nbgrader_config.py /etc/jupyter/nbgrader_config.py
 RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
 ADD ldap.conf /etc/ldap.conf

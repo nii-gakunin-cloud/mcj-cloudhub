@@ -18,6 +18,17 @@ jupyter nblineage quick-setup
 jupyter nbextension install --py lc_multi_outputs --user
 jupyter nbextension enable lc_multi_outputs --user --py
 
+export JUPYTER_CONFIG_PATH=/jupyter/$NB_USER/nbgrader/$MOODLECOURSE:$JUPYTER_CONFIG_PATH
+export PATH=/opt/local/bin:$NB_USER/.local/bin:$NB_USER/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:/home/$NB_USER/tools:$PATH
+
+exec_sh () {
+    for script in $1; do
+        if [ -f "$script" ]; then
+            source "$script" >> ~/custom_installer.log 2>&1 || true
+        fi
+    done
+}
+
 if [ "$COURSEROLE" == "Instructor" ]; then
     jupyter serverextension enable --sys-prefix nbgrader.server_extensions.formgrader
     jupyter nbextension enable --sys-prefix formgrader/main --section=tree
@@ -25,6 +36,17 @@ if [ "$COURSEROLE" == "Instructor" ]; then
     jupyter labextension enable nbgrader:formgrader
     jupyter labextension enable nbgrader:create-assignment
 fi
+if [ ! -z "$ENABLE_CUSTOM_SETUP" ]; then
+    if [ "$COURSEROLE" == "Instructor" ]; then
+        exec_sh "/opt/local/sbin/*.sh" "$HOME/custom_installer.log"
+        ln -s /opt/local ~/local
+    else
+        exec_sh "/opt/local/sbin/*.sh"
+    fi
+fi
+
+unlink ~/class
+ln -s /jupytershare/class/$MOODLECOURSE ~/class
 
 # Original in base notebook container image
 . /usr/local/bin/start-singleuser.sh $@

@@ -411,7 +411,7 @@ class ldapClient():
                 pass
 
 
-def get_user_mounts(course_name: str):
+def get_user_mounts(course_name: str, role):
 
     mounts = dict()
     mounts[os.path.join(HOME_DIR_ROOT_HOST, '{username}')] = {
@@ -430,7 +430,16 @@ def get_user_mounts(course_name: str):
         'bind': os.path.join('/etc', 'sudoers'),
         'mode': 'ro',
     }
-
+    if role == McjRoles.INSTRUCTOR.value:
+        mounts[os.path.join(SHARE_DIR_ROOT_HOST, course_name, 'opt', 'local', 'sbin')] = {
+            'bind': os.path.join('/opt', 'local', 'sbin'),
+            'mode': 'rw',
+        }
+    else:
+        mounts[os.path.join(SHARE_DIR_ROOT_HOST, course_name, 'opt', 'local', 'sbin')] = {
+            'bind': os.path.join('/opt', 'local', 'sbin'),
+            'mode': 'ro',
+        }
     return mounts
 
 
@@ -457,14 +466,14 @@ def confirm_share_dir(role, root_uid_num, user_name,
                     gid=gid_teachers)
         confirm_dir(submit_dir, mode=0o0750, uid=uid_num,
                     gid=root_uid_num)
+        confirm_dir(os.path.join(SHARE_DIR_ROOT_HOST, course, 'opt', 'local', 'bin'), mode=0o0755, uid=uid_num,
+                   gid=-1)
+        confirm_dir(os.path.join(SHARE_DIR_ROOT_HOST, course, 'opt', 'local', 'sbin'), mode=0o0755, uid=uid_num,
+                   gid=-1)
+
     else:
         confirm_dir(submit_dir, mode=0o0750, uid=uid_num,
                     gid=gid_teachers)
-
-    if os.path.islink(class_dir):
-        os.unlink(class_dir)
-
-    os.symlink(course_share_dir_root, class_dir)
 
 
 def get_course_students_by_nrps(url, default_key='user_id'):
@@ -708,6 +717,7 @@ def auth_state_hook(spawner, auth_state):
         'HOME': homedir_container,
         'CHOWN_HOME': 'yes',
         'CHOWN_EXTRA_OPTS': '-R',
+        'ENABLE_CUSTOM_SETUP': 'yes',
     }
     spawner.extra_container_spec.update({"user": "root",
                                          "workdir": homedir_container})
@@ -718,7 +728,7 @@ def auth_state_hook(spawner, auth_state):
     spawner.user.name = lms_username
     spawner.user_id = uid_num
     spawner.group_id = gid_num
-    spawner.volumes = get_user_mounts(lms_course_shortname)
+    spawner.volumes = get_user_mounts(lms_course_shortname, lms_role)
 
 
 def post_auth_hook(lti_authenticator, handler, authentication):
