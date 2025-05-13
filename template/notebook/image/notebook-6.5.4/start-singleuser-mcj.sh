@@ -38,14 +38,20 @@ if [ "$COURSEROLE" == "Instructor" ]; then
 fi
 if [ ! -z "$ENABLE_CUSTOM_SETUP" ]; then
     if [ "$COURSEROLE" == "Instructor" ]; then
-        exec_sh "/opt/local/sbin/*.sh" "$HOME/custom_installer.log"
-        ln -s /opt/local ~/local
+        exec_sh "/opt/local/sbin/*.sh" "custom_installer.log"
+        option_dir=/home/$NB_USER/local
+        if [ ! -L $option_dir ]; then
+          ln -s /opt/local $option_dir
+        fi
     else
         exec_sh "/opt/local/sbin/*.sh"
     fi
 fi
 
-unlink ~/class
+class_dir=/home/$NB_USER/class
+if [ -L $class_dir ]; then
+    unlink $class_dir
+fi
 ln -s /jupytershare/class/$MOODLECOURSE ~/class
 
 # Original in base notebook container image

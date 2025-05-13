@@ -717,8 +717,10 @@ def auth_state_hook(spawner, auth_state):
         'HOME': homedir_container,
         'CHOWN_HOME': 'yes',
         'CHOWN_EXTRA_OPTS': '-R',
-        'ENABLE_CUSTOM_SETUP': 'yes',
     }
+    if os.getenv('ENABLE_CUSTOM_SETUP'):
+        spawner.environment['ENABLE_CUSTOM_SETUP'] = 'yes'
+
     spawner.extra_container_spec.update({"user": "root",
                                          "workdir": homedir_container})
     spawner.cpu_limit = role_config[lms_role]['cpu_limit']
