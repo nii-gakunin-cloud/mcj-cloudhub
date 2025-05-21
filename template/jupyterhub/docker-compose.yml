@@ -31,8 +31,8 @@ services:
       LMS_CLIENT_ID: {{lms_cliend_id}}
       LTI_USERNAME_KEY: {{lti_username_key}}
       DEFAULT_URL: {{default_url}}
-{% if enable_custom_setup is defined and enable_custom_setup == True %}
-      ENABLE_CUSTOM_SETUP: yes
+{% if enable_custom_setup is defined and enable_custom_setup %}
+      ENABLE_CUSTOM_SETUP: "yes"
 {% endif %}
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:

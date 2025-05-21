@@ -435,9 +435,17 @@ def get_user_mounts(course_name: str, role):
             'bind': os.path.join('/opt', 'local', 'sbin'),
             'mode': 'rw',
         }
+        mounts[os.path.join(SHARE_DIR_ROOT_HOST, course_name, 'opt', 'local', 'bin')] = {
+            'bind': os.path.join('/opt', 'local', 'bin'),
+            'mode': 'rw',
+        }
     else:
         mounts[os.path.join(SHARE_DIR_ROOT_HOST, course_name, 'opt', 'local', 'sbin')] = {
             'bind': os.path.join('/opt', 'local', 'sbin'),
+            'mode': 'ro',
+        }
+        mounts[os.path.join(SHARE_DIR_ROOT_HOST, course_name, 'opt', 'local', 'bin')] = {
+            'bind': os.path.join('/opt', 'local', 'bin'),
             'mode': 'ro',
         }
     return mounts
