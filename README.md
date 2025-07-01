@@ -1,5 +1,7 @@
 # MCJ-CloudHub
 
+[English README is here](https://github.com/nii-gakunin-cloud/mcj-cloudhub/blob/main/README-en.md)
+
 ## MCJ-CloudHubとは
 
 複数科目で共同・同時利用可能なWeb型プログラミング演習システムです。
