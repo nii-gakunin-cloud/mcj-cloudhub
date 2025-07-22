@@ -18,7 +18,7 @@ jupyter nblineage quick-setup
 jupyter nbextension install --py lc_multi_outputs --user
 jupyter nbextension enable lc_multi_outputs --user --py
 
-export JUPYTER_CONFIG_PATH=/jupyter/$NB_USER/nbgrader/$MOODLECOURSE:$JUPYTER_CONFIG_PATH
+export JUPYTER_CONFIG_PATH=/jupyter/$NB_USER/nbgrader/$COURSE_SHORTNAME:$JUPYTER_CONFIG_PATH
 export PATH=/opt/local/bin:$NB_USER/.local/bin:$NB_USER/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:/home/$NB_USER/tools:$PATH
 
 exec_sh () {
@@ -52,7 +52,7 @@ class_dir=/home/$NB_USER/class
 if [ -L $class_dir ]; then
     unlink $class_dir
 fi
-ln -s /jupytershare/class/$MOODLECOURSE ~/class
+ln -s /jupytershare/class/$COURSE_SHORTNAME ~/class
 
 # Original in base notebook container image
 . /usr/local/bin/start-singleuser.sh $@

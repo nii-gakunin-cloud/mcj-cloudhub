@@ -7,19 +7,13 @@ import secrets
 import shutil
 import string
 import sys
-import time
-import jwt
 import requests
-import urllib
 import yaml
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa
-from ldap3 import Server, Connection, ALL, MODIFY_REPLACE
-from ldap3.core.exceptions import LDAPNoSuchObjectResult
+from ldap3 import MODIFY_REPLACE
 
 from lms_web_service import get_course_students_by_lms_api
-
+from lti import confirm_key_exist, get_lms_lti_token
+from utils import ldapClient
 
 LOG_FORMAT = '[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s'
 CONTEXTLEVEL_COURSE = 50
@@ -56,13 +50,13 @@ gid_teachers = int(os.getenv('TEACHER_GID', 600))
 gid_students = int(os.getenv('STUDENT_GID', 601))
 
 ldap_password = os.environ['LDAP_PASSWORD']
-ldap_server = 'ldap:1389'
+ldap_server = os.getenv('LDAP_SERVER', 'ldap:1389')
 ldap_base_dn = 'ou=People,dc=jupyterhub,dc=server,dc=sample,dc=jp'
 ldap_manager_dn = f'cn={os.getenv("LDAP_ADMIN", "Manager")},'\
                     'dc=jupyterhub,dc=server,dc=sample,dc=jp'
 
-database_dbhost = 'mariadb'
-database_dbname = 'jupyterhub'
+database_dbhost = os.getenv('DB_HOST', 'mariadb')
+database_dbname = os.getenv('DB_NAME', 'jupyterhub')
 database_username = os.getenv('DB_USER', 'jupyter')
 database_password = os.environ['DB_PASSWORD']
 
@@ -77,13 +71,15 @@ email_domain = os.getenv('EMAIL_DOMAIN', 'example.com')
 with open('/etc/jupyterhub/jupyterhub_params.yaml', 'r', encoding="utf-8") as yml:
     config = yaml.safe_load(yml)
 
-c = get_config() # noqa
+c = get_config() # type: ignore # noqa
 
 c.Authenticator.allow_all = True
+c.Authenticator.manage_roles = True
 
 # cookie max-age (days) is 6 hours
 c.JupyterHub.cookie_max_age_days = config.get(
     'cookie_max_age_days', DEFUALT_COOKIE_MAX_AGE_DAYS)
+c.JupyterHub.cookie_secret_file = '/srv/jupyterhub/jupyterhub_cookie_secret'
 
 if config.get('cull_server') is not None:
     cull_server_idle_timeout = config['cull_server'].get(
@@ -96,9 +92,10 @@ else:
     cull_server_idle_timeout = DEFUALT_IDLE_TIMEOUT
     cull_server_every = DEFUALT_CULL_EVERY
     cull_server_max_age = DEFUALT_SERVER_MAX_AGE
+c.JupyterHub.load_roles = []
 
 if cull_server_idle_timeout > 0:
-    c.JupyterHub.load_roles = [
+    c.JupyterHub.load_roles.append(
         {
             "name": "jupyterhub-idle-culler-role",
             "scopes": [
@@ -109,7 +106,7 @@ if cull_server_idle_timeout > 0:
             ],
             "services": ["jupyterhub-idle-culler-service"],
         }
-    ]
+    )
     c.JupyterHub.services = [
         {
             "name": "jupyterhub-idle-culler-service",
@@ -122,13 +119,6 @@ if cull_server_idle_timeout > 0:
             ],
         }
     ]
-
-c.JupyterHub.services.append({
-    'name': 'mcjapi',
-    'url': 'http://jupyterhub:10101',
-    'command': ['python3', '/etc/jupyterhub/handler.py'],
-    'admin': True,
-})
 
 if 'JUPYTERHUB_CRYPT_KEY' not in os.environ:
     c.CryptKeeper.keys = [os.urandom(32)]
@@ -185,9 +175,42 @@ c.LTI13Authenticator.issuer = os.getenv('LMS_PLATFORM_ID')
 c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
 # The platform's JWKS endpoint url providing public key sets used to verify the ID token
 c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
-# The platform's endpoint url for creating access token
-# c.LTI13Authenticator.token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
 token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
+private_key, public_key = confirm_key_exist()
+
+port = 8088
+c.JupyterHub.services.append(
+    {
+        'name': 'teachertools',
+        'url': f'http://0.0.0.0:{port}',
+        'command': [
+            sys.executable,
+            "/etc/jupyterhub/service-teachertools/teachertools.py",
+            '--lms-token-endpoint',
+            token_endpoint,
+            '--lms-client-id',
+            os.getenv('LMS_CLIENT_ID'),
+            '--port',
+            str(port),
+            '--homedir',
+            HOME_DIR_ROOT_HOST,
+        ],
+        'environment': {'LDAP_PASSWORD': os.environ['LDAP_PASSWORD'],
+                        'LDAP_SERVER': ldap_server}
+    }
+)
+
+c.JupyterHub.load_roles.append(
+    {
+        "name": "teachertools-service-role",
+        "scopes": [
+            "read:users",
+            "admin:auth_state",
+            "read:roles",
+        ],
+        "services": ["teachertools"],
+    }
+)
 
 # The external tool's client id as represented within the platform (LMS)
 c.LTI13Authenticator.client_id = os.getenv('LMS_CLIENT_ID')
@@ -203,12 +226,14 @@ c.Spawner.default_url = os.getenv('DEFAULT_URL', "/lab")
 c.Spawner.args.append('--allow-root')
 
 # Allowed Images of Notebook
-c.DockerSpawner.allowed_images = [os.environ['NOTEBOOK_IMAGE']]
+#c.DockerSpawner.allowed_images = [os.environ['NOTEBOOK_IMAGE']]
+c.DockerSpawner.allowed_images = [f"{os.environ['NOTEBOOK_IMAGE']}"]
 # Home directory in container
 c.DockerSpawner.notebook_dir = '~'
 
 # Image of Notebook
-c.SwarmSpawner.image = os.environ['NOTEBOOK_IMAGE']
+#c.SwarmSpawner.image = os.environ['NOTEBOOK_IMAGE']
+c.SwarmSpawner.image = f"{os.environ['NOTEBOOK_IMAGE']}"
 
 # this is the network name for jupyterhub in docker-compose.yml
 # with a leading 'swarm_' that docker-compose adds
@@ -260,6 +285,28 @@ class McjRoles(Enum):
             return cls.INSTRUCTOR.value
         else:
             return cls.LEARNER.value
+
+    @classmethod
+    def is_instructor(cls, lti_roles):
+        """role判定
+
+        Instructor&Learner -> Learner
+        Learner -> Learner
+        Instructor -> Instructor
+        """
+
+        is_instructor = False
+        is_learner = False
+        for rolename in lti_roles:
+            param_type, role = rolename.split('#')
+            if not param_type == IMS_LTI13_KEY_MEMBERSHIP:
+                continue
+            if role == cls.INSTRUCTOR.value:
+                is_instructor = True
+            elif role == cls.LEARNER.value:
+                is_learner = True
+
+        return not is_learner and is_instructor
 
 
 role_config = {
@@ -354,63 +401,6 @@ def set_permission_recursive(path: str, mode = None,
             os.chown(p, uid, gid)
 
 
-class ldapClient():
-
-    def __init__(self, host, manager_dn, password):
-        self.server = Server(host, get_info=ALL)
-        self.conn = Connection(
-            host,
-            manager_dn,
-            password=password,
-            read_only=False,
-            raise_exceptions=True,
-        )
-
-    def search_user(self, username, attributes: list = None):
-        self.conn.bind()
-        try:
-            self.conn.search(
-                f'uid={username},{ldap_base_dn}',
-                '(objectClass=*)',
-                attributes=attributes,
-            )
-            return copy.deepcopy(self.conn.entries)
-        except LDAPNoSuchObjectResult:
-            return
-        finally:
-            try:
-                self.conn.unbind()
-            except Exception:
-                pass
-
-    def add_user(self, dn, object_class=None, attributes=None):
-        self.conn.bind()
-        try:
-            self.conn.add(
-                dn,
-                object_class,
-                attributes,
-            )
-        finally:
-            try:
-                self.conn.unbind()
-            except Exception:
-                pass
-
-    def update_user(self, user_name: str, params: dict):
-        self.conn.bind()
-        try:
-            self.conn.modify(
-                f'uid={user_name},{ldap_base_dn}',
-                params,
-            )
-        finally:
-            try:
-                self.conn.unbind()
-            except Exception:
-                pass
-
-
 def get_user_mounts(course_name: str, role):
 
     mounts = dict()
@@ -484,12 +474,20 @@ def confirm_share_dir(role, root_uid_num, user_name,
                     gid=gid_teachers)
 
 
+def get_nrps_token():
+    return get_lms_lti_token(IMS_LTI13_NRPS_TOKEN_SCOPE,
+                             jupyterhub_fqdn,
+                             private_key,
+                             token_endpoint,
+                             os.environ['LMS_CLIENT_ID'])
+
+
 def get_course_students_by_nrps(url, default_key='user_id'):
 
     global nrps_token
     if nrps_token is None:
         nrps_token = get_nrps_token()
-
+        logger.info('Created LMS access token')
     headers = {'Authorization': f'Bearer {nrps_token}'}
     response = requests.get(
         url,
@@ -500,6 +498,7 @@ def get_course_students_by_nrps(url, default_key='user_id'):
 
         logger.info('LMS access token expired')
         nrps_token = get_nrps_token()
+        logger.info('LMS access token successfully recreated')
         headers = {'Authorization': f'Bearer {nrps_token}'}
         response = requests.get(
             url,
@@ -521,7 +520,6 @@ def get_course_students_by_nrps(url, default_key='user_id'):
                 last_name=member.get('family_name'),
                 email=member.get('email'),
                 lms_user_id=member['user_id']))
-
     return students
 
 
@@ -756,100 +754,44 @@ def post_auth_hook(lti_authenticator, handler, authentication):
     lms_user_name = authentication['auth_state'][IMS_LTI13_KEY_MEMBER_EXT]['user_username']
     if jupyterhub_admin_users is not None and lms_user_name in jupyterhub_admin_users:
         updated_auth_state['admin'] = True
-    updated_auth_state['groups'] = [McjRoles.get_user_role(authentication['auth_state'][IMS_LTI13_KEY_MEMBER_ROLES])]
+    # groupはログイン中のコース、roleがJupyterhubに対する権限
+    course_name = updated_auth_state['auth_state'][IMS_LTI13_KEY_MEMBER_CONTEXT]['label']
+    updated_auth_state['groups'] = [course_name]
     updated_auth_state['name'] = lms_user_name
+
+    if 'roles' not in updated_auth_state:
+        updated_auth_state['roles'] = list()
+
+    # デフォルトのuserは使えない？
+    updated_auth_state['roles'].append({'name': 'user'})
+
+    role_user_common = {
+        'name': 'self',
+    #    'scopes': ['users!user=self']
+    }
+    updated_auth_state['roles'].append(role_user_common)
+    if McjRoles.is_instructor(authentication['auth_state'][IMS_LTI13_KEY_MEMBER_ROLES]):
+        role_course_admin = {
+            'name': f'instructor-{course_name}',
+            'scopes': [
+                'admin-ui',
+                f'list:users!group={course_name}',
+                f'admin:servers!group={course_name}',
+                f"access:servers!group={course_name}",
+            ]}
+        role_instructor_common = {
+            'name': 'instructor',
+            'scopes': ['access:services', "access:services!service=mcjapi", "access:services!service=announcement"]
+        }
+        role_jupyterhub_admin = {'name': 'admin'}
+        updated_auth_state['roles'].append(role_instructor_common)
+        updated_auth_state['roles'].append(role_course_admin)
+
+    if jupyterhub_admin_users is not None and lms_user_name in jupyterhub_admin_users:
+        updated_auth_state['roles'].append(role_jupyterhub_admin)
+
     return updated_auth_state
 
 
-def get_or_generate_nrps_keypair():
-
-    # Import key when already exists or Create key when not exists
-    if os.path.isfile(f'{os.path.dirname(__file__)}/public_key_nrps.pem') and \
-       os.path.isfile(f'{os.path.dirname(__file__)}/private_key_nrps.pem'):
-        with open(f'{os.path.dirname(__file__)}/private_key_nrps.pem', "rb") as key_file:
-            private_key = serialization.load_pem_private_key(
-                key_file.read(),
-                password=None,
-            )
-        with open(f'{os.path.dirname(__file__)}/public_key_nrps.pem', "rb") as key_file:
-            public_key = serialization.load_pem_public_key(
-                key_file.read(),
-            )
-
-    else:
-        # 鍵の生成
-        private_key = rsa.generate_private_key(
-            public_exponent=65537,
-            key_size=2048,
-            backend=default_backend()
-        )
-
-        # 公開鍵
-        public_key = private_key.public_key()
-
-        # 鍵をファイル出力する
-        public_key_pem = public_key.public_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PublicFormat.SubjectPublicKeyInfo
-        )
-        with open(f"{os.path.dirname(__file__)}/public_key_nrps.pem", "w+b") as f:
-            f.write(public_key_pem)
-
-        private_key_pem = private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.TraditionalOpenSSL,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        with open(f"{os.path.dirname(__file__)}/private_key_nrps.pem", "w+b") as f:
-            f.write(private_key_pem)
-
-        os.chmod(f"{os.path.dirname(__file__)}/private_key_nrps.pem", 0o0400)
-
-    return private_key, public_key
-
-
-def get_nrps_jwt():
-
-    private_key, public_key = get_or_generate_nrps_keypair()
-    current_unix_time = int(time.time())
-    token_value = {
-        "iss": f"https://{jupyterhub_fqdn}",
-        "iat": current_unix_time,
-        "exp": current_unix_time + 60 * 60 * 24 * 100,
-        "aud": token_endpoint,
-        "sub": c.LTI13Authenticator.client_id
-    }
-
-    return jwt.encode(
-        token_value, private_key, algorithm="RS256")
-
-
-def get_nrps_token():
-    data = {
-        'grant_type': 'client_credentials',
-        'client_assertion_type': IMS_LTI13_NRPS_ASSERT_TYPE,
-        'client_assertion': encoded_jwt,
-        'scope': IMS_LTI13_NRPS_TOKEN_SCOPE,
-    }
-    data = urllib.parse.urlencode(data)
-    headers = {
-        'Content-Type': 'application/x-www-form-urlencoded',
-    }
-
-    response = requests.post(
-        token_endpoint,
-        headers=headers,
-        data=data,
-        timeout=300
-    )
-
-    if 200 != response.status_code:
-        logger.error(response.text)
-        raise McjException("Failed to get nrps token from LMS. Public key in outer tool settings in LMS may be wrong")
-
-    return response.json()['access_token']
-
-
-encoded_jwt = get_nrps_jwt()
 c.SwarmSpawner.auth_state_hook = auth_state_hook
 c.Authenticator.post_auth_hook = post_auth_hook
