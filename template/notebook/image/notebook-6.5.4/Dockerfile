@@ -79,4 +79,18 @@ ADD nbgrader/gradebook_assignments.js /opt/conda/lib/python3.11/site-packages/nb
 ADD start-notebook-mcj.sh /usr/local/bin/start-notebook-mcj.sh
 ADD start-singleuser-mcj.sh /usr/local/bin/start-singleuser-mcj.sh
 RUN chmod 4755 /usr/local/bin/start-notebook-mcj.sh /usr/local/bin/start-singleuser-mcj.sh
+
 CMD ["start-notebook-mcj.sh"]
+
+# For iframe
+RUN <<EOF
+mkdir -p /usr/local/etc/jupyter
+cat << EOT > /usr/local/etc/jupyter/jupyter_server_config.py
+c = get_config()  # noqa: F821
+c.ServerApp.tornado_settings = {
+    'headers': {
+        'Content-Security-Policy': "frame-ancestors 'self'"
+    }
+}
+EOT
+EOF
