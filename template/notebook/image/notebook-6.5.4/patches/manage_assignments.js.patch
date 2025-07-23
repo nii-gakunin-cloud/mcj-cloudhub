@@ -1,0 +1,221 @@
+37d36
+<         this.is_lab = options.is_lab || false;
+58,62d56
+<         var timezone = $("<tr/>");
+<         tablebody.append(timezone);
+<         timezone.append($("<td/>").addClass("align-middle").text("Timezone as UTC offset (optional)"));
+<         timezone.append($("<td/>").append($("<input/>").addClass("modal-timezone").attr("type", "text")));
+< 
+77,79c71,89
+<         this.$modal_duedate.val(this.model.get("duedate_notimezone"));
+<         this.$modal_timezone = this.$modal.find("input.modal-timezone");
+<         this.$modal_timezone.val(this.model.get("duedate_timezone"));
+---
+> 
+>         if (!(this.model.get("duedate_notimezone") === undefined) && !(this.model.get("duedate_notimezone") === null)) {
+>             var jst = new Date(this.model.get("duedate_notimezone"));
+>             jst.setHours(jst.getHours() + 9);
+> 
+>             const YYYY = jst.getFullYear();
+>             const MM = ( '00' + (jst.getMonth() + 1) ).slice( -2 );
+>             const DD = ( '00' + jst.getDate() ).slice( -2 );
+>             const hh = ( '00' + jst.getHours() ).slice( -2 );
+>             const mm = ( '00' + jst.getMinutes() ).slice( -2 );
+>             const ss = "00";
+> 
+>             jstDate = YYYY + "-" + MM + "-" + DD
+>             jstTime = hh + ":" + mm + ":" + ss
+>             duedate_jst = jstDate + "T" + jstTime
+>         } else {
+>             duedate_jst = this.model.get("duedate_notimezone");
+>         };
+>         this.$modal_duedate.val(duedate_jst);
+105,116c115,133
+<         /* Append link with :
+<          *     - href if this is a Notebook<7 environment
+<          *     - click listener to send message to iframe parent if this is Jupyter Lab environment
+<          */
+<         this.$name.append($("<a/>")
+<             .text(name)
+<             .attr("target", self.is_lab ? undefined : "_blank")
+<             .attr("href", self.is_lab ? undefined : base_url + "/tree/" + url_prefix + "/" + this.model.get("source_path"))
+<             .click(self.is_lab ? function(){
+<                 window.parent.postMessage(jlab_go_to_path(url_prefix + "/" + this_assignment.model.get("source_path")), '*');
+<             } : undefined)
+<         );
+---
+>         // Append link with a listener to send message to iframe parent.
+>         // NOTE: the formgrade UI is embedded in an iframe.
+>         if (window === window.top){
+>             this.$name.append($("<a/>")
+>                 .text(name)
+>                 .attr("href", base_url + "/tree/" + url_prefix + "/source/" + name)
+>             );
+>         } else {
+>             this.$name.append($("<a/>")
+>                 .text(name)
+>                 .attr("href", "#")
+>                 .click(function() {
+>                     window.parent.postMessage(
+>                         jlab_go_to_path(url_prefix + "/" + this_assignment.model.get("source_path")),
+>                         '*'
+>                     );
+>                 })
+>             );
+>         }
+120a138,153
+>         if (!(display_duedate === undefined) && (!(display_duedate === null))) {
+>         var jst = new Date(display_duedate.replace('UTC', '').trim());
+>         jst.setHours(jst.getHours() + 9);
+> 
+>         const YYYY = jst.getFullYear();
+>         const MM = ( '00' + (jst.getMonth() + 1) ).slice( -2 );
+>         const DD = ( '00' + jst.getDate() ).slice( -2 );
+>         const hh = ( '00' + jst.getHours() ).slice( -2 );
+>         const mm = ( '00' + jst.getMinutes() ).slice( -2 );
+>         const ss = "00";
+> 
+>         jstDate = YYYY + "-" + MM + "-" + DD
+>         jstTime = hh + ":" + mm + ":" + ss
+>         display_duedate_jst = jstDate + " " + jstTime + " JST"        
+>         display_duedate = display_duedate_jst
+>         };
+144c177,179
+<                 .attr("aria-hidden", "true")));
+---
+>                 .attr("aria-hidden", "true")
+>             )
+>         );
+152c187,189
+<                 .attr("aria-hidden", "true")));
+---
+>                 .attr("aria-hidden", "true")
+>             )
+>         );
+157,170c194,220
+<             /* Append link with :
+<              *     - href if this is a Notebook<7 environment
+<              *     - click listener to send message to iframe parent if this is Jupyter Lab environment
+<              */
+<             this.$preview.append($("<a/>")
+<                 .attr("target", self.is_lab ? undefined : "_blank")
+<                 .attr("href", self.is_lab ? undefined : base_url + "/tree/" + url_prefix + "/" + release_path)
+<                 .click(self.is_lab ? function(){
+<                         window.parent.postMessage(jlab_go_to_path(url_prefix + "/" + release_path), '*');
+<                     } : undefined)
+<                 .append($("<span/>")
+<                     .addClass("glyphicon glyphicon-search")
+<                     .attr("aria-hidden", "true")));
+<         }
+---
+>             // Append link with a listener to send message to iframe parent.
+>             // NOTE: the formgrade UI is embedded in an iframe.
+> 
+>             if (window === window.top){
+>                 this.$preview.append($("<a/>")
+>                     .attr("href", base_url + "/notebooks/" + url_prefix + "/release/" + name)
+>                     .append($("<span/>")
+>                         .addClass("glyphicon glyphicon-search")
+>                         .attr("aria-hidden", "true")
+>                     )
+>                 );
+>             } else {
+>                this.$preview.append($("<a/>")
+>                     .attr("href", "#")
+>                     .click(function() {
+>                         window.parent.postMessage(
+>                             jlab_go_to_path(url_prefix + "/" + release_path),
+>                             '*'
+>                         );
+>                     })
+>                     .append($("<span/>")
+>                         .addClass("glyphicon glyphicon-search")
+>                         .attr("aria-hidden", "true")
+>                     )
+>                 );
+>             };
+>         };
+181c231,233
+<                         .attr("aria-hidden", "true")));
+---
+>                         .attr("aria-hidden", "true")
+>                     )
+>                 );
+188c240,242
+<                         .attr("aria-hidden", "true")));
+---
+>                         .attr("aria-hidden", "true")
+>                     )
+>                 );
+200c254,256
+<                         .attr("aria-hidden", "true")));
+---
+>                         .attr("aria-hidden", "true")
+>                     )
+>                 );
+212c268,269
+<                 .text(num_submissions));
+---
+>                 .text(num_submissions)
+>             );
+218c275
+< 		.attr("href", "#")
+---
+>                 .attr("href", "#")
+220,222c277,281
+< 		.append($("<span/>")
+< 		   .addClass("glyphicon glyphicon-comment")
+<                    .attr("aria-hidden", "true")));
+---
+>                 .append($("<span/>")
+>                     .addClass("glyphicon glyphicon-comment")
+>                     .attr("aria-hidden", "true")
+>                 )
+>             );
+228c287
+< 		.attr("href", "#")
+---
+>                 .attr("href", "#")
+230,232c289,293
+< 		.append($("<span/>")
+< 		   .addClass("glyphicon glyphicon-envelope")
+<                    .attr("aria-hidden", "true")));
+---
+>                 .append($("<span/>")
+>                     .addClass("glyphicon glyphicon-envelope")
+>                     .attr("aria-hidden", "true")
+>                 )
+>             );
+383c444
+<         var timezone = this.$modal_timezone.val();
+---
+>         var timezone = "+9";
+474d534
+<             this.$modal_timezone = undefined;
+504c564
+<         var timezone = modal.find(".timezone").val();
+---
+>         var timezone = "+9";
+562,566d621
+<     var timezone = $("<tr/>");
+<     tablebody.append(timezone);
+<     timezone.append($("<td/>").addClass("align-middle").text("Timezone as UTC offset (optional)"));
+<     timezone.append($("<td/>").append($("<input/>").addClass("timezone").attr("type", "text")));
+< 
+582c637
+< var loadAssignments = function (is_lab=false) {
+---
+> var loadAssignments = function () {
+594,595c649
+<                     "el": insertRow(tbl),
+<                     "is_lab": is_lab
+---
+>                     "el": insertRow(tbl)
+608d661
+< var is_lab = is_lab || false;
+611c664
+<     loadAssignments(is_lab);
+---
+>     loadAssignments();
+612a666
+> 

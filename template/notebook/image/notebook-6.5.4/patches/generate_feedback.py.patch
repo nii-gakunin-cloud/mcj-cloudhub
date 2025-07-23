@@ -1,0 +1,4 @@
+39c39
+<         return 664 if self.coursedir.groupshared else 644
+---
+>         return 660 if self.coursedir.groupshared else 640
