@@ -2,7 +2,9 @@
 <html>
 <head>
     <title>{{ title }}</title>
+    {% if html_auto_refresh_sec and html_auto_refresh_sec > 0 %}
     <meta http-equiv="refresh" content="{{ html_auto_refresh_sec }}" />
+    {% endif %}
     <meta charset="UTF-8">
     <style>
     .table-wrap {
