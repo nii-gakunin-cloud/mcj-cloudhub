@@ -1,0 +1,19 @@
+4c4,5
+< ], function($, Jupyter) {
+---
+>     'base/js/utils',
+> ], function($, Jupyter, utils) {
+98,104c99,103
+<         $.ajax({
+<             url: url,
+<             dataType: 'json',
+<             success: function (json) {
+<                 server_env = json;
+<             }
+<         })
+---
+>         var request = {
+>             method: 'GET',
+>         };
+>         utils.promising_ajax(url, request
+>         ).then((value) => server_env = value)
