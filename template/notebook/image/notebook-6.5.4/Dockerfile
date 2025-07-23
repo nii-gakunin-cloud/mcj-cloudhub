@@ -89,14 +89,13 @@ COPY patches $PATCH_DIR
 # setup files for Nbgrader
 COPY nbgrader/nbgrader_config.py /etc/jupyter/nbgrader_config.py
 RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
-RUN patch /opt/conda/lib/python3.11/site-packages/nbgrader/converters/generate_feedback.py $PATCH_DIR/patches/generate_feedback.py.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exchange.py $PATCH_DIR/patches/exchange.py.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py $PATCH_DIR/patches/release_assignment.py.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js $PATCH_DIR/patches/manage_assignments.js.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js $PATCH_DIR/patches/manage_submissions.js.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js $PATCH_DIR/patches/gradebook_assignments.js.patch
+RUN patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exchange.py $PATCH_DIR/exchange.py.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py $PATCH_DIR/release_assignment.py.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js $PATCH_DIR/manage_assignments.js.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js $PATCH_DIR/manage_submissions.js.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js $PATCH_DIR/gradebook_assignments.js.patch
 
 # temporary fix in nblineage: csrf token settings
-RUN patch /opt/conda/lib/python3.11/site-packages/nblineage/nbextension/tracking_server.js /tmp/patches/tracking_server.js.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nblineage/nbextension/meme.js /tmp/patches/meme.js.patch
+RUN patch /opt/conda/lib/python3.11/site-packages/nblineage/nbextension/tracking_server.js $PATCH_DIR/tracking_server.js.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nblineage/nbextension/meme.js $PATCH_DIR/meme.js.patch
 
