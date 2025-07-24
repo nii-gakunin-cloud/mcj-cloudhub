@@ -50,8 +50,7 @@ RUN pip3 install jupyter-server>2 \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_index \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_wrapper
 
-RUN pip3 install --upgrade jupyter-server==2.12.5 \
-                           ipywidgets==4.0
+RUN pip3 install --upgrade jupyter-server==2.12.5
 
 RUN python -m lc_wrapper.ipython.install && \
     jupyter nbextension install --sys-prefix --py notebook_index && \
