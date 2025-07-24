@@ -3,7 +3,10 @@
 <head>
     <title>{{ title }}</title>
     {% if html_auto_refresh_sec and html_auto_refresh_sec > 0 %}
+    <span>{{ html_auto_refresh_sec }}秒間隔で画面をリロードします。</span>
     <meta http-equiv="refresh" content="{{ html_auto_refresh_sec }}" />
+    {% else %}
+    <span>※手動でリロードしてください。</span>
     {% endif %}
     <meta charset="UTF-8">
     <style>
