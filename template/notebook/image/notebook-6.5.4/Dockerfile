@@ -44,7 +44,7 @@ RUN pip3 install jupyter-server>2 \
                  jupyter_contrib_nbextensions \
                  jupyter_nbextensions_configurator \
                  jupyterlab-language-pack-ja-JP \
-                 nbgrader==0.8.5 jupyterhub==5.3 \
+                 nbgrader==0.8.5 jupyterhub==4.0.2 \
                  git+https://github.com/NII-cloud-operation/Jupyter-multi_outputs \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_nblineage \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_index \
@@ -93,8 +93,3 @@ RUN patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exch
     patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js $PATCH_DIR/manage_assignments.js.patch && \
     patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js $PATCH_DIR/manage_submissions.js.patch && \
     patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js $PATCH_DIR/gradebook_assignments.js.patch
-
-# temporary fix in nblineage: csrf token settings
-RUN patch /opt/conda/lib/python3.11/site-packages/nblineage/nbextension/tracking_server.js $PATCH_DIR/tracking_server.js.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nblineage/nbextension/meme.js $PATCH_DIR/meme.js.patch
-
