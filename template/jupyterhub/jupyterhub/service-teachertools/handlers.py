@@ -5,7 +5,7 @@ import logging
 import os
 import requests
 
-from jupyterhub.services.auth import HubOAuthenticated
+from jupyterhub.services.auth import HubAuthenticated, HubOAuthenticated
 from jupyterhub.utils import url_path_join
 from jinja2 import Environment
 from nbgrader.api import Gradebook, MissingEntry
@@ -24,6 +24,7 @@ require_scopes = (
     'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
     'https://purl.imsglobal.org/spec/lti-ags/scope/score',
 )
+course_info_key = 'https://purl.imsglobal.org/spec/lti/claim/context'
 lms_token = None
 private_key, _ = confirm_key_exist()
 
@@ -81,10 +82,71 @@ class TeacherToolsOutputHandler(TeacherToolsHandler):
         self.write(json.dumps(_output, indent=1, sort_keys=True))
 
 
-class TeacherToolsLogDBHandler(TeacherToolsOutputHandler):
-    """Update log db"""
+class TeacherToolsApiHandler(HubAuthenticated, web.RequestHandler):
 
     _token_authenticated = True
+
+    def initialize(self):
+        self.hub_api_url = self.settings["hub_api_url"]
+        self.homedir = self.settings["homedir"]
+
+    def check_xsrf_cookie(self):
+        return
+
+    @property
+    def log(self):
+        return self.settings.get("log",
+                                 logging.getLogger("tornado.application"))
+
+    def get_user_info(self, user):
+        headers = {"Authorization": f"token {os.environ['JUPYTERHUB_API_TOKEN']}"}
+        url = f"{self.hub_api_url}/users/{user['name']}"
+        r = requests.get(url, headers=headers)
+        return r.json()
+
+    def course_shortname(self, user, homedir='/home'):
+
+        # 存在するコースかチェック（このユーザのhomeディレクトリ配下に存在）
+        # auth_stateを確認
+        user_info = self.get_user_info(user)
+        if user_info.get('auth_state'):
+            course_name = user_info['auth_state']['https://purl.imsglobal.org/spec/lti/claim/context']['label']
+        else:
+            course_name = user['groups'][0]
+        course_dir = os.path.join(homedir, user['name'], 'nbgrader', course_name)
+        if not os.path.isdir(course_dir):
+            raise FileNotFoundError(f'Not found course directory: {course_dir}')
+        return course_name
+
+    def json_output(self, status_code=None, reason=None, output={}):
+        self.set_header("Content-Type", "application/json; charset=UTF-8")
+        if status_code:
+            self.set_status(status_code, reason)
+        if len(output) == 0:
+            _output = {}
+        else:
+            _output = output
+        self.write(json.dumps(_output, indent=1, sort_keys=True))
+
+    def write_error(self, status_code, **kwargs):
+        self.set_header("Content-Type", "application/json")
+        if "exc_info" in kwargs:
+            exception = kwargs["exc_info"][1]
+            if isinstance(exception, web.HTTPError):
+                self.log.warning(exception.log_message)
+                reason = exception.reason
+                if 403 == status_code and not reason:
+                    reason = 'Token may be invalid'
+                self.finish({
+                    "status": status_code,
+                    "reason": reason,
+                })
+                return
+        self.finish({"status": status_code, "reason": "Unknown error"})
+
+
+class TeacherToolsLogDBHandler(TeacherToolsApiHandler):
+    """Update log db"""
 
     def initialize(self):
         super().initialize()
@@ -95,10 +157,11 @@ class TeacherToolsLogDBHandler(TeacherToolsOutputHandler):
         self.json_data = escape.json_decode(self.request.body)
         try:
             # required params
-            course = self.json_data.get('course')
+            # TODO: userのgroupから取る
+            course = self.json_data['course']
         except KeyError as e:
             raise web.HTTPError(
-                HTTPStatus.BAD_REQUEST, f"Missing required paramater: {e}"
+                HTTPStatus.BAD_REQUEST, reason=f"Missing required paramater: [{e}]"
             )
 
         dt_from = self.json_data.get('from')
@@ -239,9 +302,13 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
         user_info = self.get_user_info(user)
 
         # 教師roleが割り当てられているか？
-        if f"instructor-{course_id}" not in user_info['roles']:
+        if "teacher" not in user_info['groups']:
             raise web.HTTPError(
-                HTTPStatus.FORBIDDEN, f"User is not teacher for course {user['groups'][0]}"
+                HTTPStatus.FORBIDDEN, "User is not teacher"
+            )
+        if course_id not in user_info['groups']:
+            raise web.HTTPError(
+                HTTPStatus.FORBIDDEN, f"User is teacher but not this course: {course_id}"
             )
 
         # TODO ログイン中にJupyterhub再起動など行うと、auth_state情報が失われるためエラーになる
@@ -348,9 +415,10 @@ class TeacherToolsViewHandler(TeacherToolsHandler):
         user = self.get_current_user()
         post_url = url_path_join(self.service_prefix, "api/ags/scores")
 
-        course_name = self.course_shortname(user, self.homedir)
+        course_short_name = self.course_shortname(user, self.homedir)
+        course_name = self.get_user_info(user)['auth_state'][course_info_key]['title']
         assignments = get_course_assignments(user['name'],
-                                             course_name,
+                                             course_short_name,
                                              self.homedir)
         announce = self.fixed_message if self.fixed_message else None
         self.write(

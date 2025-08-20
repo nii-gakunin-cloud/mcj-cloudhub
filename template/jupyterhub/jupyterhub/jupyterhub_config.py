@@ -178,11 +178,12 @@ c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/cer
 token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
 private_key, public_key = confirm_key_exist()
 
-port = 8088
+service_teachertools_name = "teachertools"
+service_teachertools_port = 8088
 c.JupyterHub.services.append(
     {
-        'name': 'teachertools',
-        'url': f'http://0.0.0.0:{port}',
+        'name': service_teachertools_name,
+        'url': f'http://0.0.0.0:{service_teachertools_port}',
         'command': [
             sys.executable,
             "/etc/jupyterhub/service-teachertools/teachertools.py",
@@ -191,7 +192,7 @@ c.JupyterHub.services.append(
             '--lms-client-id',
             os.getenv('LMS_CLIENT_ID'),
             '--port',
-            str(port),
+            str(service_teachertools_port),
             '--homedir',
             HOME_DIR_ROOT_HOST,
         ],
@@ -199,16 +200,26 @@ c.JupyterHub.services.append(
                         'LDAP_SERVER': ldap_server}
     }
 )
-
+# Permission for service
 c.JupyterHub.load_roles.append(
     {
-        "name": "teachertools-service-role",
+        "name": f"{service_teachertools_name}-role",
         "scopes": [
             "read:users",
             "admin:auth_state",
             "read:roles",
         ],
-        "services": ["teachertools"],
+        "services": [service_teachertools_name],
+    }
+)
+# Permission for teachers
+c.JupyterHub.load_roles.append(
+    {
+        "name": "teachers",
+        "scopes": [
+            f"access:services!service={service_teachertools_name}"
+        ],
+        "groups": ["teacher"],
     }
 )
 
@@ -756,39 +767,11 @@ def post_auth_hook(lti_authenticator, handler, authentication):
         updated_auth_state['admin'] = True
     # groupはログイン中のコース、roleがJupyterhubに対する権限
     course_name = updated_auth_state['auth_state'][IMS_LTI13_KEY_MEMBER_CONTEXT]['label']
-    updated_auth_state['groups'] = [course_name]
     updated_auth_state['name'] = lms_user_name
-
-    if 'roles' not in updated_auth_state:
-        updated_auth_state['roles'] = list()
-
-    # デフォルトのuserは使えない？
-    updated_auth_state['roles'].append({'name': 'user'})
-
-    role_user_common = {
-        'name': 'self',
-    #    'scopes': ['users!user=self']
-    }
-    updated_auth_state['roles'].append(role_user_common)
-    if McjRoles.is_instructor(authentication['auth_state'][IMS_LTI13_KEY_MEMBER_ROLES]):
-        role_course_admin = {
-            'name': f'instructor-{course_name}',
-            'scopes': [
-                'admin-ui',
-                f'list:users!group={course_name}',
-                f'admin:servers!group={course_name}',
-                f"access:servers!group={course_name}",
-            ]}
-        role_instructor_common = {
-            'name': 'instructor',
-            'scopes': ['access:services', "access:services!service=mcjapi", "access:services!service=announcement"]
-        }
-        role_jupyterhub_admin = {'name': 'admin'}
-        updated_auth_state['roles'].append(role_instructor_common)
-        updated_auth_state['roles'].append(role_course_admin)
-
-    if jupyterhub_admin_users is not None and lms_user_name in jupyterhub_admin_users:
-        updated_auth_state['roles'].append(role_jupyterhub_admin)
+    updated_auth_state['groups'] = [course_name]
+    is_t = McjRoles.is_instructor(authentication['auth_state'][IMS_LTI13_KEY_MEMBER_ROLES])
+    if is_t:
+        updated_auth_state['groups'].append('teacher')
 
     return updated_auth_state
 

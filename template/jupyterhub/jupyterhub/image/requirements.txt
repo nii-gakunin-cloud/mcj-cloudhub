@@ -1,11 +1,10 @@
-dockerspawner==14.0.0
-jupyterhub-ltiauthenticator==1.6.2
+dockerspawner
+jupyterhub-ltiauthenticator
+jupyterhub-idle-culler
+pydantic
+nbgrader==0.8.5
 jupyter_client==8.1.0
 ldap3==2.9.1
 pymysql==1.1.1
 mysql-connector-python==9.1.0
 pyyaml==6.0.1
-jupyterhub-idle-culler==1.3.1
-nbgrader==0.8.5
-Flask==3.0.3
-waitress==3.0.1
