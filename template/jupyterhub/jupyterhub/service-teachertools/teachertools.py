@@ -182,6 +182,12 @@ class TeacherToolsService(Application):
             'hub_api_url': self.hub_api_url,
         }
 
+        if "xsrf_cookie_kwargs" not in self.settings:
+            # default: set xsrf cookie on service url
+            self.settings["xsrf_cookie_kwargs"] = {
+                "path": os.getenv("JUPYTERHUB_SERVICE_PREFIX",
+                                  f"/services/{os.environ['JUPYTERHUB_SERVICE_NAME']}")}
+
         self.app = web.Application(
             [
                 (
