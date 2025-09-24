@@ -13,7 +13,7 @@ from ldap3 import MODIFY_REPLACE
 
 from lms_web_service import get_course_students_by_lms_api
 from lti import confirm_key_exist, get_lms_lti_token
-from utils import ldapClient
+from utils import ldapClient, replace_url
 
 LOG_FORMAT = '[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s'
 CONTEXTLEVEL_COURSE = 50
@@ -31,9 +31,6 @@ DEFUALT_IDLE_TIMEOUT = 1800
 DEFUALT_CULL_EVERY = 60
 DEFUALT_SERVER_MAX_AGE = 0
 DEFUALT_COOKIE_MAX_AGE_DAYS = 0.25
-
-HOME_DIR_ROOT = '/home'
-SHARE_DIR_ROOT = '/jupytershare'
 
 # -- logger setting --
 logger = logging.getLogger()
@@ -55,7 +52,7 @@ ldap_base_dn = 'ou=People,dc=jupyterhub,dc=server,dc=sample,dc=jp'
 ldap_manager_dn = f'cn={os.getenv("LDAP_ADMIN", "Manager")},'\
                     'dc=jupyterhub,dc=server,dc=sample,dc=jp'
 
-database_dbhost = os.getenv('DB_HOST', 'mariadb')
+database_dbhost = os.getenv('DB_HOST', 'db')
 database_dbname = os.getenv('DB_NAME', 'jupyterhub')
 database_username = os.getenv('DB_USER', 'jupyter')
 database_password = os.environ['DB_PASSWORD']
@@ -63,9 +60,21 @@ database_password = os.environ['DB_PASSWORD']
 get_course_member_method = os.getenv('LTI_METHOD')
 lms_api_token = os.getenv('LMS_API_TOKEN')
 
-HOME_DIR_ROOT_HOST = os.environ['HOME_DIR_ROOT']
-SHARE_DIR_ROOT_HOST = os.environ['SHARE_DIR_ROOT']
-skelton_directory = os.path.join(HOME_DIR_ROOT_HOST, 'skelton')
+HOME_DIR_ROOT_HOST = os.environ['HOME_DIR_ROOT_HOST']
+SHARE_DIR_ROOT_HOST = os.environ['SHARE_DIR_ROOT_HOST']
+SHARE_DIR_ROOT_JUPYTERHUB = os.getenv('DATA_ROOT', '/jupyterdata')
+HOME_DIR_ROOT = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'jupyter')
+SHARE_DIR_ROOT = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'jupytershare')
+
+HOME_DIR_ROOT_SINGLEUSER = os.path.join('/home')
+SHARE_DIR_ROOT_SINGLEUSER = os.path.join('/jupytershare')
+
+# 閉じたネットワーク内でLMSと通信を行う場合、サービス名を指定する
+# 指定が無い場合、LTI認証で得られたURLを利用する
+LMS_URL = os.getenv('LMS_URL')
+LMS_SUBDIR = os.getenv('LMS_SUBDIR')
+
+skelton_directory = os.path.join('/etc', 'jupyterhub', 'directories', 'skelton')
 email_domain = os.getenv('EMAIL_DOMAIN', 'example.com')
 
 with open('/etc/jupyterhub/jupyterhub_params.yaml', 'r', encoding="utf-8") as yml:
@@ -152,12 +161,11 @@ c.JupyterHub.db_kwargs = {
 
 # url for the database. e.g. `sqlite:///jupyterhub.sqlite`
 # Use MySQL (mariadb)
-c.JupyterHub.db_url = 'mysql+mysqlconnector://{}:{}@{}/{}{}'.format(
+c.JupyterHub.db_url = 'mysql+pymysql://{}:{}@{}/{}'.format(
     database_username,
     database_password,
     database_dbhost,
-    database_dbname,
-    '')
+    database_dbname)
 
 # -- Set LTI authenticator --
 c.JupyterHub.authenticator_class = "ltiauthenticator.lti13.auth.LTI13Authenticator"
@@ -174,9 +182,15 @@ c.LTI13Authenticator.issuer = os.getenv('LMS_PLATFORM_ID')
 # Add the LTI 1.3 configuration options
 c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
 # The platform's JWKS endpoint url providing public key sets used to verify the ID token
+
 c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
 token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
-private_key, public_key = confirm_key_exist()
+
+if LMS_URL:
+    c.LTI13Authenticator.jwks_endpoint = f'{LMS_URL}/mod/lti/certs.php'
+    token_endpoint = f'{LMS_URL}/mod/lti/token.php'
+lti_key_pair_path = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'secrets')
+private_key, public_key = confirm_key_exist(path=lti_key_pair_path)
 
 service_teachertools_name = "teachertools"
 service_teachertools_port = 8088
@@ -194,10 +208,15 @@ c.JupyterHub.services.append(
             '--port',
             str(service_teachertools_port),
             '--homedir',
-            HOME_DIR_ROOT_HOST,
+            HOME_DIR_ROOT,
+            '--lti-key-pair-path',
+            lti_key_pair_path,
         ],
         'environment': {'LDAP_PASSWORD': os.environ['LDAP_PASSWORD'],
-                        'LDAP_SERVER': ldap_server}
+                        'LDAP_SERVER': ldap_server,
+                        'LDAP_MANAGER_DN': ldap_manager_dn,
+                        **os.environ
+                        }
     }
 )
 # Permission for service
@@ -229,7 +248,7 @@ c.LTI13Authenticator.client_id = os.getenv('LMS_CLIENT_ID')
 c.LTI13Authenticator.username_key = os.getenv('LTI_USERNAME_KEY', 'email')
 
 # Use SwarmSpawner.
-c.JupyterHub.spawner_class = 'dockerspawner.SwarmSpawner'
+c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 
 # -- configurations for Spawner --
 c.Spawner.http_timeout = 300
@@ -242,23 +261,26 @@ c.DockerSpawner.allowed_images = [f"{os.environ['NOTEBOOK_IMAGE']}"]
 # Home directory in container
 c.DockerSpawner.notebook_dir = '~'
 
+# Debug for failing spawning
+# c.DockerSpawner.remove = True
+
 # Image of Notebook
-#c.SwarmSpawner.image = os.environ['NOTEBOOK_IMAGE']
-c.SwarmSpawner.image = f"{os.environ['NOTEBOOK_IMAGE']}"
+# c.SwarmSpawner.image = os.environ['NOTEBOOK_IMAGE']
+c.DockerSpawner.image = f"{os.environ['NOTEBOOK_IMAGE']}"
 
 # this is the network name for jupyterhub in docker-compose.yml
 # with a leading 'swarm_' that docker-compose adds
-c.SwarmSpawner.network_name = os.getenv('DOCKER_NETWORK_NAME')
-c.SwarmSpawner.extra_host_config = {
+c.DockerSpawner.network_name = os.getenv('DOCKER_NETWORK_NAME')
+c.DockerSpawner.extra_host_config = {
     'network_mode': os.getenv('DOCKER_NETWORK_NAME')}
-c.SwarmSpawner.extra_placement_spec = {
-    'constraints': [f'node.role == {os.getenv("NB_NODE_ROLE", "manager")}']}
+# c.SwarmSpawner.extra_placement_spec = {
+#     'constraints': [f'node.role == {os.getenv("NB_NODE_ROLE", "manager")}']}
 
 # For debug
 # c.SwarmSpawner.debug = True
 
 # launch timeout
-c.SwarmSpawner.start_timeout = 300
+c.DockerSpawner.start_timeout = 300
 
 nrps_token = None
 
@@ -413,21 +435,24 @@ def set_permission_recursive(path: str, mode = None,
 
 
 def get_user_mounts(course_name: str, role):
+    """HOST->single-user container
+    """
 
     mounts = dict()
     mounts[os.path.join(HOME_DIR_ROOT_HOST, '{username}')] = {
-        'bind': os.path.join(HOME_DIR_ROOT, '{username}'),
+        'bind': os.path.join(HOME_DIR_ROOT_SINGLEUSER, '{username}'),
         'mode': 'rw',
     }
     mounts[os.path.join(SHARE_DIR_ROOT_HOST, 'class', course_name)] = {
-        'bind': os.path.join(SHARE_DIR_ROOT, 'class', course_name),
+        'bind': os.path.join(SHARE_DIR_ROOT_SINGLEUSER, 'class', course_name),
         'mode': 'rw',
     }
     mounts[os.path.join(SHARE_DIR_ROOT_HOST, 'nbgrader', 'exchange', course_name)] = {
-        'bind': os.path.join(SHARE_DIR_ROOT, 'nbgrader', 'exchange', course_name),
+        'bind': os.path.join(SHARE_DIR_ROOT_SINGLEUSER, 'nbgrader', 'exchange', course_name),
         'mode': 'rw',
     }
-    mounts[os.path.join('/exchange', 'sudoers')] = {
+
+    mounts[os.path.join(os.environ['TEMPLATE_DIR_HOST'], 'jupyterhub', 'directories', 'sudoers')] = {
         'bind': os.path.join('/etc', 'sudoers'),
         'mode': 'ro',
     }
@@ -454,31 +479,31 @@ def get_user_mounts(course_name: str, role):
 
 def confirm_share_dir(role, root_uid_num, user_name,
                       uid_num, course):
+    """共有ディレクトリの存在チェック
 
-    course_share_dir_root = os.path.join(SHARE_DIR_ROOT_HOST, 'class')
-    share_path = os.path.join(course_share_dir_root, course, 'share')
+    無ければ作成するが、Jupyterhubコンテナ内で作成されるため、
+    host->single-userコンテナのマウントでこのディレクトリがマウントされるようパスを確認すること。
+    """
+    course_share_dir_root = os.path.join(SHARE_DIR_ROOT, 'class')
+    share_root = os.path.join(course_share_dir_root, course, 'share')
     submit_root = os.path.join(course_share_dir_root, course, 'submit')
     submit_dir = os.path.join(course_share_dir_root, course, 'submit',
                               user_name)
-    class_dir = os.path.join(HOME_DIR_ROOT_HOST, user_name, 'class')
 
-    confirm_dir(submit_root, mode=0o0755, uid=root_uid_num,
+    confirm_dir(course_share_dir_root, mode=0o0775, uid=root_uid_num,
+                gid=root_uid_num)
+    confirm_dir(share_root, mode=0o0775, uid=root_uid_num,
                 gid=gid_teachers)
-    confirm_dir(share_path, mode=0o0775, uid=root_uid_num,
+    confirm_dir(submit_root, mode=0o0755, uid=root_uid_num,
                 gid=gid_teachers)
 
     if role == McjRoles.INSTRUCTOR.value:
-
-        confirm_dir(course_share_dir_root, mode=0o0775, uid=root_uid_num,
-                    gid=root_uid_num)
-        confirm_dir(course_share_dir_root, mode=0o0775, uid=root_uid_num,
-                    gid=gid_teachers)
         confirm_dir(submit_dir, mode=0o0750, uid=uid_num,
                     gid=root_uid_num)
-        confirm_dir(os.path.join(SHARE_DIR_ROOT_HOST, course, 'opt', 'local', 'bin'), mode=0o0755, uid=uid_num,
-                   gid=-1)
-        confirm_dir(os.path.join(SHARE_DIR_ROOT_HOST, course, 'opt', 'local', 'sbin'), mode=0o0755, uid=uid_num,
-                   gid=-1)
+        confirm_dir(os.path.join(SHARE_DIR_ROOT, course, 'opt', 'local', 'bin'),
+                    mode=0o0755, uid=uid_num, gid=-1)
+        confirm_dir(os.path.join(SHARE_DIR_ROOT, course, 'opt', 'local', 'sbin'),
+                    mode=0o0755, uid=uid_num, gid=-1)
 
     else:
         confirm_dir(submit_dir, mode=0o0750, uid=uid_num,
@@ -494,12 +519,12 @@ def get_nrps_token():
 
 
 def get_course_students_by_nrps(url, default_key='user_id'):
-
     global nrps_token
     if nrps_token is None:
         nrps_token = get_nrps_token()
         logger.info('Created LMS access token')
     headers = {'Authorization': f'Bearer {nrps_token}'}
+
     response = requests.get(
         url,
         headers=headers,
@@ -542,16 +567,16 @@ def confirm_nbgrader_dir(course_name,
                          groupid,
                          students):
 
-    exchange_root_path = os.path.join(SHARE_DIR_ROOT_HOST, 'nbgrader',
+    exchange_root_path = os.path.join(SHARE_DIR_ROOT, 'nbgrader',
                                       'exchange')
     exchange_course_path = os.path.join(exchange_root_path, course_name)
     exchange_inbound_path = os.path.join(exchange_course_path, 'inbound')
     exchange_outbound_path = os.path.join(exchange_course_path, 'outbound')
     exchange_feedback_path = os.path.join(exchange_course_path, 'feedback')
 
-    user_home = os.path.join(HOME_DIR_ROOT_HOST, user_name)
-    nbgrader_template_path_base = os.path.join(SHARE_DIR_ROOT_HOST, 'nbgrader',
-                                               'templates')
+    user_home = os.path.join(HOME_DIR_ROOT, user_name)
+    nbgrader_template_path_base = os.path.join('/etc', 'jupyterhub',
+                                               'directories')
     nbgrader_template_path = os.path.join(nbgrader_template_path_base,
                                           role_config[role]['template_dir_name'])
 
@@ -641,8 +666,8 @@ def auth_state_hook(spawner, auth_state):
     lms_username = auth_state[IMS_LTI13_KEY_MEMBER_EXT]['user_username']
     lms_course_shortname = auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['label']
     lms_role = McjRoles.get_user_role(auth_state[IMS_LTI13_KEY_MEMBER_ROLES])
-    homedir_host = os.path.join(HOME_DIR_ROOT_HOST, lms_username)
-    homedir_container = os.path.join(HOME_DIR_ROOT, lms_username)
+    homedir_jupyterhub = os.path.join(HOME_DIR_ROOT, lms_username)
+    homedir_singleuser = os.path.join(HOME_DIR_ROOT_SINGLEUSER, lms_username)
     uid_num = int(auth_state['sub']) + 1000
     gid_num = role_config[lms_role]['gid_num']
 
@@ -659,7 +684,7 @@ def auth_state_hook(spawner, auth_state):
                 'sn': lms_username,
                 'uidNumber': uid_num,
                 'gidNumber': gid_num,
-                'homeDirectory': homedir_container,
+                'homeDirectory': homedir_singleuser,
                 'loginShell': role_config[lms_role]['login_shell'],
                 'userPassword': get_random_password(12),
                 'mail': f'{lms_username}@{email_domain}',
@@ -670,11 +695,11 @@ def auth_state_hook(spawner, auth_state):
                              {'gidNumber': [(MODIFY_REPLACE, [gid_num])]})
 
     # ホームディレクトリ作成
-    confirm_dir(homedir_host, mode=0o755, uid=uid_num, gid=gid_num)
+    confirm_dir(homedir_jupyterhub, mode=0o755, uid=uid_num, gid=gid_num)
     if lms_role == McjRoles.INSTRUCTOR.value:
         shutil.copy(os.path.join(skelton_directory, 'README.md'),
-                    homedir_host)
-        tools_dir = os.path.join(homedir_host, 'teacher_tools')
+                    homedir_jupyterhub)
+        tools_dir = os.path.join(homedir_jupyterhub, 'teacher_tools')
         if not os.path.isdir(tools_dir):
             shutil.copytree(os.path.join(skelton_directory, 'teacher_tools'),
                             tools_dir)
@@ -704,12 +729,18 @@ def auth_state_hook(spawner, auth_state):
             auth_state[IMS_LTI13_KEY_MEMBER_CONTEXT]['id'],
             c.LTI13Authenticator.issuer)
     elif c.LTI13Authenticator.username_key == 'email':
+        context_memberships_url = auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url']
+        if LMS_URL:
+            context_memberships_url = replace_url(context_memberships_url, LMS_URL, LMS_SUBDIR)
         students = get_course_students_by_nrps(
-            auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url'],
+            context_memberships_url,
             default_key='email')
     else:
+        context_memberships_url = auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url']
+        if LMS_URL:
+            context_memberships_url = replace_url(context_memberships_url, LMS_URL, LMS_SUBDIR)
         students = get_course_students_by_nrps(
-            auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url'])
+            context_memberships_url)
 
     confirm_nbgrader_dir(
         lms_course_shortname, lms_role, lms_username,
@@ -723,23 +754,23 @@ def auth_state_hook(spawner, auth_state):
         'TEACHER_GID': gid_teachers,
         'STUDENT_GID': gid_students,
         'JUPYTERHUB_FQDN': jupyterhub_fqdn,
-        'PATH': f'{homedir_container}/.local/bin:' +
-                f'{homedir_container}/bin:/usr/local/bin:/usr/local/sbin:' +
+        'PATH': f'{homedir_singleuser}/.local/bin:' +
+                f'{homedir_singleuser}/bin:/usr/local/bin:/usr/local/sbin:' +
                 '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:' +
-                f'{homedir_container}/tools',
+                f'{homedir_singleuser}/tools',
         'NB_USER': lms_username,
-        'PWD': homedir_container,
+        'PWD': homedir_singleuser,
         'NB_UID': uid_num,
         'NB_GID': gid_num,
-        'HOME': homedir_container,
+        'HOME': homedir_singleuser,
         'CHOWN_HOME': 'yes',
         'CHOWN_EXTRA_OPTS': '-R',
     }
     if os.getenv('ENABLE_CUSTOM_SETUP'):
         spawner.environment['ENABLE_CUSTOM_SETUP'] = 'yes'
 
-    spawner.extra_container_spec.update({"user": "root",
-                                         "workdir": homedir_container})
+    # spawner.extra_container_spec.update({"user": "root",
+    #                                      "workdir": homedir_singleuser})
     spawner.cpu_limit = role_config[lms_role]['cpu_limit']
     spawner.mem_limit = role_config[lms_role]['mem_limit']
     spawner.cpu_guarantee = role_config[lms_role]['cpu_guarantee']
@@ -776,5 +807,5 @@ def post_auth_hook(lti_authenticator, handler, authentication):
     return updated_auth_state
 
 
-c.SwarmSpawner.auth_state_hook = auth_state_hook
+c.DockerSpawner.auth_state_hook = auth_state_hook
 c.Authenticator.post_auth_hook = post_auth_hook

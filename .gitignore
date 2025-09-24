@@ -10,3 +10,5 @@ inventory.yml
 notebooks.svg
 work*
 deploy_vm_for_vcnode.ipynb
+template/jupyterhub/nginx/certs
+template/mcj-data

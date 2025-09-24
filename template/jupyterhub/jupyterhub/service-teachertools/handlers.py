@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import requests
+from urllib.parse import urlsplit, urlunsplit
 
 from jupyterhub.services.auth import HubAuthenticated, HubOAuthenticated
 from jupyterhub.utils import url_path_join
@@ -15,7 +16,7 @@ from tornado import escape, web
 from lti import get_lms_lti_token, confirm_key_exist
 from models import LineItem, Score
 from nbgrader_utils import get_course_assignments, get_grades, db_path, log2db
-from utils import ldapClient
+from utils import ldapClient, replace_url
 
 
 require_scopes = (
@@ -26,7 +27,7 @@ require_scopes = (
 )
 course_info_key = 'https://purl.imsglobal.org/spec/lti/claim/context'
 lms_token = None
-private_key, _ = confirm_key_exist()
+# private_key, _ = confirm_key_exist(path=os.path.join(os.getenv('DATA_ROOT', '/jupyterdata'), 'secrets'))
 
 
 class TeacherToolsException(Exception):
@@ -39,6 +40,7 @@ class TeacherToolsHandler(HubOAuthenticated, web.RequestHandler):
         super().initialize()
         self.hub_api_url = self.settings["hub_api_url"]
         self.homedir = self.settings["homedir"]
+        self.lti_key_pair_path = self.settings["lti_key_pair_path"]
 
     @property
     def log(self):
@@ -202,8 +204,7 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
         self.lms_client_id = lms_client_id
 
     def get_uid(self, username):
-        ldap_manager_dn = f'cn={os.getenv("LDAP_ADMIN", "Manager")},'\
-                        'dc=jupyterhub,dc=server,dc=sample,dc=jp'
+        ldap_manager_dn = os.getenv("LDAP_MANAGER_DN", "cn=Manager,dc=jupyterhub,dc=server,dc=sample,dc=jp")
         ldapconn = ldapClient(os.environ['LDAP_SERVER'],
                               ldap_manager_dn,
                               os.environ['LDAP_PASSWORD'])
@@ -213,6 +214,7 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
     def _request_lms(self, url, headers, method="GET", params=None, data=None, timeout=10):
         global lms_token
         if lms_token is None:
+            private_key, _ = confirm_key_exist(path=self.lti_key_pair_path)
             lms_token = get_lms_lti_token(
                                 require_scopes,
                                 os.environ['JUPYTERHUB_BASE_URL'],
@@ -221,6 +223,8 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
                                 self.lms_client_id)
         _headers = headers.copy()
         _headers['Authorization'] = f'Bearer {lms_token}'
+        if os.getenv('LMS_URL'):
+            url = replace_url(url, os.environ['LMS_URL'], os.getenv('LMS_SUBDIR'))
 
         response = requests.request(
             method,
@@ -232,6 +236,7 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
         )
         if HTTPStatus.UNAUTHORIZED == response.status_code:
             # service用tokenが有効期限切れになっている場合再発行
+            private_key, _ = confirm_key_exist(path=self.lti_key_pair_path)
             lms_token = get_lms_lti_token(require_scopes,
                                             os.environ['JUPYTERHUB_BASE_URL'],
                                             private_key,
@@ -318,7 +323,6 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
             )
 
         ags_url = user_info['auth_state']["https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"]['lineitems']
-        from urllib.parse import urlsplit, urlunsplit
 
         # Check assignment info exists in nbgrader db
         gb_dir = db_path(user['name'], course_id, self.homedir)
@@ -329,6 +333,9 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
                 raise web.HTTPError(
                     HTTPStatus.NOT_FOUND, f"Not found assignment in db: {assignment_name}"
                 )
+
+        if os.getenv('LMS_URL'):
+            ags_url = replace_url(ags_url, os.getenv('LMS_URL'), os.getenv('LMS_SUBDIR'))
 
         parts = urlsplit(ags_url)
         ags_url_base = urlunsplit((parts.scheme, parts.netloc, parts.path, '', ''))
@@ -359,6 +366,9 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
 
             # http://sample.com/mod/lti/services.php/6/lineitems/28/lineitem?type_id=1 などが返る
             lineitem_id = response.json()['id']
+
+        if os.getenv('LMS_URL'):
+            ags_url = replace_url(ags_url, os.getenv('LMS_URL'), os.getenv('LMS_SUBDIR'))
 
         parts = urlsplit(lineitem_id)
         ags_url_base = urlunsplit((parts.scheme, parts.netloc, parts.path, '', ''))
@@ -436,4 +446,3 @@ class TeacherToolsViewHandler(TeacherToolsHandler):
                                  parsed_scopes=user.get('scopes') or [],
                                  )
         )
-

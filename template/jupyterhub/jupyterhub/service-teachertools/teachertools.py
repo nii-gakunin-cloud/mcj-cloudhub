@@ -19,6 +19,7 @@ from handlers import (
     TeacherToolsViewHandler,
     TeacherToolsLogDBHandler,
 )
+from utils import replace_url
 
 
 class TeacherToolsService(Application):
@@ -37,6 +38,7 @@ class TeacherToolsService(Application):
         'lms-token-endpoint': 'TeacherToolsService.lms_token_endpoint',
         'lms-client-id': 'TeacherToolsService.lms_client_id',
         'homedir': 'TeacherToolsService.homedir',
+        'lti-key-pair-path': 'TeacherToolsService.lti_key_pair_path',
     }
 
     hub_api_url = Unicode(
@@ -137,6 +139,18 @@ class TeacherToolsService(Application):
         config=True,
     )
 
+    lti_key_pair_path = Unicode(
+        "/etc/jupyterhub",
+        help=dedent(
+            """
+            Directory path where key path for lti auth is saved.
+            """
+        ).strip(),
+        allow_none=True,
+    ).tag(
+        config=True,
+    )
+
     _log_formatter_cls = CoroutineLogFormatter
 
     @default("log_datefmt")
@@ -180,6 +194,7 @@ class TeacherToolsService(Application):
             "xsrf_cookies": True,
             'homedir': self.homedir,
             'hub_api_url': self.hub_api_url,
+            'lti_key_pair_path': self.lti_key_pair_path,
         }
 
         if "xsrf_cookie_kwargs" not in self.settings:
