@@ -57,7 +57,8 @@
                 body: JSON.stringify(body)
             })
             if (!response.ok) {
-                throw new Error(`${response.status}: ${response.statusText}`);
+                const res_json = await response.json()
+                throw new Error(`[${response.status}] ${response.statusText} ${res_json.reason}`);
             }
             return await response.json();
         } catch (e) {
@@ -90,12 +91,13 @@
             const elemResult = row.querySelector('.item-result');
             const elemMsg = row.querySelector('.item-message');
             elemResult.textContent = statusMessage.SENDING;
+            let response;
             try {
-                const response = await postScore(assignmentName);
+                response = await postScore(assignmentName);
                 elemResult.textContent = statusMessage.SUCCESS;
             } catch (e) {
-                elemResult.textContent = statusMessage.FAILED;
-                elemMsg.textContent = e;
+                elemResult.textContent = `${statusMessage.FAILED}`;
+                elemMsg.textContent = e.message;
             }
         }
     }

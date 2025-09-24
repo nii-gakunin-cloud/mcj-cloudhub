@@ -26,6 +26,7 @@ require_scopes = (
     'https://purl.imsglobal.org/spec/lti-ags/scope/score',
 )
 course_info_key = 'https://purl.imsglobal.org/spec/lti/claim/context'
+ags_endpoint_key = 'https://purl.imsglobal.org/spec/lti-ags/claim/endpoint'
 lms_token = None
 # private_key, _ = confirm_key_exist(path=os.path.join(os.getenv('DATA_ROOT', '/jupyterdata'), 'secrets'))
 
@@ -82,6 +83,22 @@ class TeacherToolsOutputHandler(TeacherToolsHandler):
         else:
             _output = output
         self.write(json.dumps(_output, indent=1, sort_keys=True))
+
+    def write_error(self, status_code, **kwargs):
+        self.set_header("Content-Type", "application/json")
+        if "exc_info" in kwargs:
+            exception = kwargs["exc_info"][1]
+            if isinstance(exception, web.HTTPError):
+                self.log.warning(exception.log_message)
+                reason = exception.reason
+                if 403 == status_code and not reason:
+                    reason = 'Token may be invalid'
+                self.finish({
+                    "status": status_code,
+                    "reason": reason,
+                })
+                return
+        self.finish({"status": status_code, "reason": "Unknown error"})
 
 
 class TeacherToolsApiHandler(HubAuthenticated, web.RequestHandler):
@@ -321,8 +338,13 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
             raise web.HTTPError(
                 HTTPStatus.UNAUTHORIZED, "User may be logged out. Login required."
             )
+        if user_info['auth_state'].get(ags_endpoint_key) is None:
+            raise web.HTTPError(
+                log_message="Log: Assignment and Grade Services is not enabled. Check Tool settings in Moodle.",
+                reason="Client: Assignment and Grade Services is not enabled. Check Tool settings in Moodle."
+            )
 
-        ags_url = user_info['auth_state']["https://purl.imsglobal.org/spec/lti-ags/claim/endpoint"]['lineitems']
+        ags_url = user_info['auth_state'][ags_endpoint_key]['lineitems']
 
         # Check assignment info exists in nbgrader db
         gb_dir = db_path(user['name'], course_id, self.homedir)
