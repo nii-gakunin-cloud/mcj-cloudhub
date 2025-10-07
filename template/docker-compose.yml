@@ -1,9 +1,6 @@
-# Copyright Broadcom, Inc. All Rights Reserved.
-# SPDX-License-Identifier: APACHE-2.0
-
 services:
   db:
-    image: docker.io/bitnami/mariadb:11.4
+    image: docker.io/bitnami/mariadb:latest
     environment:
       - MARIADB_USER=${MARIADB_USER?Variable not set}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD?Variable not set}
@@ -87,7 +84,7 @@ services:
       TEMPLATE_DIR_HOST: "/home/user01/dev/mcj-cloudhub/template/jupyterhub"
       HOME_DIR_ROOT_HOST: "/home/user01/dev/mcj-cloudhub/template/mcj-data/jupyter"
       SHARE_DIR_ROOT_HOST: "/home/user01/dev/mcj-cloudhub/template/mcj-data/exchange"
-      NOTEBOOK_IMAGE: "mcj-cloudhub-nb:notebook-6.5.4"
+      NOTEBOOK_IMAGE: ${NOTEBOOK_IMAGE:-mcj-cloudhub-nb:notebook-6.5.4}
       LMS_PLATFORM_ID: ${LMS_PLATFORM_ID:-http://localhost}
       LMS_CLIENT_ID: ${LMS_CLIENT_ID:-issuedbylms}
       LTI_USERNAME_KEY: "sub"
@@ -101,6 +98,7 @@ services:
       db:
         condition: service_healthy
         restart: true
+    restart: always
     deploy:
       replicas: 1
       placement:
@@ -111,9 +109,6 @@ services:
     networks:
       - default
       - jupyterhub_public
-    # ports:
-    #   - "8000:8000"
-    #   - "8001:8001"
     environment:
       CONFIGPROXY_AUTH_TOKEN: ${CONFIGPROXY_AUTH_TOKEN?Variable not set}
     deploy:
@@ -143,7 +138,7 @@ services:
         constraints:
           - node.role == manager
   ldap:
-    image: bitnami/openldap:2.5.14
+    image: bitnamilegacy/openldap:latest
     environment:
       - LDAP_SKIP_DEFAULT_TREE=yes
       #- LDAP_ALLOW_ANON_BINDING=no

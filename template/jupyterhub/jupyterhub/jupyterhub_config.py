@@ -12,7 +12,7 @@ import yaml
 from ldap3 import MODIFY_REPLACE
 
 from lms_web_service import get_course_students_by_lms_api
-from lti import confirm_key_exist, get_lms_lti_token
+from lti import confirm_key_exist, get_lms_lti_token, get_course_students_by_nrps
 from utils import ldapClient, replace_url
 
 LOG_FORMAT = '[%(levelname)s %(asctime)s %(module)s %(funcName)s:%(lineno)d] %(message)s'
@@ -142,7 +142,7 @@ c.JupyterHub.hub_ip = '0.0.0.0'
 # this is the name of the 'service' in docker-compose.yml
 c.JupyterHub.hub_connect_ip = 'jupyterhub'
 # Initialize processing timeout for spawners.
-c.JupyterHub.init_spawners_timeout = 60
+c.JupyterHub.init_spawners_timeout = 120
 
 # Shutdown active kernels (notebooks) when user logged out.
 c.JupyterHub.shutdown_on_logout = True
@@ -178,17 +178,15 @@ c.Authenticator.manage_groups = True
 
 # -- configurations for lti1.3 --
 # Define issuer identifier of the LMS platform
+# The platform's JWKS endpoint url providing public key sets used to verify the ID token
 c.LTI13Authenticator.issuer = os.getenv('LMS_PLATFORM_ID')
+c.LTI13Authenticator.jwks_endpoint = f'{LMS_URL}/mod/lti/certs.php' if LMS_URL \
+                                     else f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
+token_endpoint = f'{LMS_URL}/mod/lti/token.php' if LMS_URL \
+                 else f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
 # Add the LTI 1.3 configuration options
 c.LTI13Authenticator.authorize_url = f'{c.LTI13Authenticator.issuer}/mod/lti/auth.php'
-# The platform's JWKS endpoint url providing public key sets used to verify the ID token
 
-c.LTI13Authenticator.jwks_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/certs.php'
-token_endpoint = f'{c.LTI13Authenticator.issuer}/mod/lti/token.php'
-
-if LMS_URL:
-    c.LTI13Authenticator.jwks_endpoint = f'{LMS_URL}/mod/lti/certs.php'
-    token_endpoint = f'{LMS_URL}/mod/lti/token.php'
 lti_key_pair_path = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'secrets')
 private_key, public_key = confirm_key_exist(path=lti_key_pair_path)
 
@@ -243,44 +241,45 @@ c.JupyterHub.load_roles.append(
 )
 
 # The external tool's client id as represented within the platform (LMS)
-c.LTI13Authenticator.client_id = os.getenv('LMS_CLIENT_ID')
+c.LTI13Authenticator.client_id = [os.environ['LMS_CLIENT_ID']]
 # default 'email'
 c.LTI13Authenticator.username_key = os.getenv('LTI_USERNAME_KEY', 'email')
 
-# Use SwarmSpawner.
-c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
+# Which spawner to use.
+c.JupyterHub.spawner_class = os.getenv('JUPYTERHUB_SPAWNER_CLASS',
+                                       'dockerspawner.DockerSpawner')
 
 # -- configurations for Spawner --
 c.Spawner.http_timeout = 300
 c.Spawner.default_url = os.getenv('DEFAULT_URL', "/lab")
 c.Spawner.args.append('--allow-root')
 
+# Image of Notebook
+c.DockerSpawner.image = f"{os.environ['NOTEBOOK_IMAGE']}"
 # Allowed Images of Notebook
-#c.DockerSpawner.allowed_images = [os.environ['NOTEBOOK_IMAGE']]
-c.DockerSpawner.allowed_images = [f"{os.environ['NOTEBOOK_IMAGE']}"]
+c.DockerSpawner.allowed_images = [os.environ['NOTEBOOK_IMAGE']]
 # Home directory in container
 c.DockerSpawner.notebook_dir = '~'
 
-# Debug for failing spawning
-# c.DockerSpawner.remove = True
-
-# Image of Notebook
-# c.SwarmSpawner.image = os.environ['NOTEBOOK_IMAGE']
-c.DockerSpawner.image = f"{os.environ['NOTEBOOK_IMAGE']}"
+# Single-user container is removed when stop
+# Set False for checking container logs when not spawn
+# c.DockerSpawner.remove = False
 
 # this is the network name for jupyterhub in docker-compose.yml
 # with a leading 'swarm_' that docker-compose adds
 c.DockerSpawner.network_name = os.getenv('DOCKER_NETWORK_NAME')
 c.DockerSpawner.extra_host_config = {
     'network_mode': os.getenv('DOCKER_NETWORK_NAME')}
-# c.SwarmSpawner.extra_placement_spec = {
-#     'constraints': [f'node.role == {os.getenv("NB_NODE_ROLE", "manager")}']}
+
+if c.JupyterHub.spawner_class == 'dockerspawner.SwarmSpawner':
+    c.SwarmSpawner.extra_placement_spec = {
+        'constraints': [f'node.role == {os.getenv("NB_NODE_ROLE", "manager")}']}
 
 # For debug
-# c.SwarmSpawner.debug = True
+# c.DockerSpawner.debug = True
 
 # launch timeout
-c.DockerSpawner.start_timeout = 300
+c.DockerSpawner.start_timeout = 120
 
 nrps_token = None
 
@@ -510,21 +509,17 @@ def confirm_share_dir(role, root_uid_num, user_name,
                     gid=gid_teachers)
 
 
-def get_nrps_token():
-    return get_lms_lti_token(IMS_LTI13_NRPS_TOKEN_SCOPE,
-                             jupyterhub_fqdn,
-                             private_key,
-                             token_endpoint,
-                             os.environ['LMS_CLIENT_ID'])
-
-
-def get_course_students_by_nrps(url, default_key='user_id'):
+def confirm_nrps_token(url):
     global nrps_token
-    if nrps_token is None:
-        nrps_token = get_nrps_token()
-        logger.info('Created LMS access token')
-    headers = {'Authorization': f'Bearer {nrps_token}'}
+    # TODO 毎回取得する？
 
+    if nrps_token is None:
+        nrps_token = get_lms_lti_token(IMS_LTI13_NRPS_TOKEN_SCOPE,
+                                       jupyterhub_fqdn,
+                                       private_key,
+                                       token_endpoint,
+                                       os.environ['LMS_CLIENT_ID'])
+    headers = {'Authorization': f'Bearer {nrps_token}'}
     response = requests.get(
         url,
         headers=headers,
@@ -532,31 +527,17 @@ def get_course_students_by_nrps(url, default_key='user_id'):
     )
     if response.status_code == 401:
 
-        logger.info('LMS access token expired')
-        nrps_token = get_nrps_token()
-        logger.info('LMS access token successfully recreated')
+        nrps_token = get_lms_lti_token(IMS_LTI13_NRPS_TOKEN_SCOPE,
+                                       jupyterhub_fqdn,
+                                       private_key,
+                                       token_endpoint,
+                                       os.environ['LMS_CLIENT_ID'])
         headers = {'Authorization': f'Bearer {nrps_token}'}
         response = requests.get(
             url,
             headers=headers,
             timeout=30
         )
-
-    students = list()
-    for member in response.json().get('members'):
-        if not member['status'] == 'Active' or 'Learner' not in member['roles']:
-            continue
-
-        user_id = member.get('ext_user_username', member[default_key])
-
-        students.append(
-            dict(
-                id=user_id,
-                first_name=member.get('given_name'),
-                last_name=member.get('family_name'),
-                email=member.get('email'),
-                lms_user_id=member['user_id']))
-    return students
 
 
 def confirm_nbgrader_dir(course_name,
@@ -721,7 +702,6 @@ def auth_state_hook(spawner, auth_state):
         uid_num,
         lms_course_shortname,
     )
-
     students = list()
     if get_course_member_method == 'moodle_api':
         students = get_course_students_by_lms_api(
@@ -732,15 +712,21 @@ def auth_state_hook(spawner, auth_state):
         context_memberships_url = auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url']
         if LMS_URL:
             context_memberships_url = replace_url(context_memberships_url, LMS_URL, LMS_SUBDIR)
+        # TODO: url
+        confirm_nrps_token(context_memberships_url)
         students = get_course_students_by_nrps(
             context_memberships_url,
+            nrps_token,
             default_key='email')
     else:
         context_memberships_url = auth_state[IMS_LTI13_KEY_NRPS]['context_memberships_url']
         if LMS_URL:
             context_memberships_url = replace_url(context_memberships_url, LMS_URL, LMS_SUBDIR)
+        confirm_nrps_token(context_memberships_url)
         students = get_course_students_by_nrps(
-            context_memberships_url)
+            context_memberships_url,
+            nrps_token,
+            )
 
     confirm_nbgrader_dir(
         lms_course_shortname, lms_role, lms_username,

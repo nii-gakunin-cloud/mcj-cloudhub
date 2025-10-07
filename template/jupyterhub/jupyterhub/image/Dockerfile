@@ -1,4 +1,4 @@
-FROM jupyterhub/jupyterhub:4.0.2
+FROM quay.io/jupyterhub/jupyterhub:4.1.5
 
 ADD requirements.txt /root
 RUN python3 -m pip install --upgrade pip

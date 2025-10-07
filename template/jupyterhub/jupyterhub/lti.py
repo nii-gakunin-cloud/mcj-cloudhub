@@ -121,3 +121,29 @@ def get_lms_lti_token(scopes: str | list, tool_url, private_key, token_endpoint,
         raise Exception("Failed to get nrps token from LMS. Public key in outer tool settings in LMS may be wrong")
 
     return response.json()['access_token']
+
+
+def get_course_students_by_nrps(url, nrps_token, default_key='user_id'):
+
+    headers = {'Authorization': f'Bearer {nrps_token}'}
+    response = requests.get(
+        url,
+        headers=headers,
+        timeout=30
+    )
+
+    students = list()
+    for member in response.json().get('members'):
+        if not member['status'] == 'Active' or 'Learner' not in member['roles']:
+            continue
+
+        user_id = member.get('ext_user_username', member[default_key])
+
+        students.append(
+            dict(
+                id=user_id,
+                first_name=member.get('given_name'),
+                last_name=member.get('family_name'),
+                email=member.get('email'),
+                lms_user_id=member['user_id']))
+    return students

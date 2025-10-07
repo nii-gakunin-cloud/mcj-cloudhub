@@ -1,4 +1,4 @@
-FROM docker.io/bitnami/moodle:4.5
+FROM docker.io/bitnamilegacy/moodle:4.5
 
 RUN apt-get update \
   && apt-get install -y curl unzip \

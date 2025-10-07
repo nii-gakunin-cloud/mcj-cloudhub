@@ -44,7 +44,7 @@ RUN pip3 install jupyter-server>2 \
                  jupyter_contrib_nbextensions \
                  jupyter_nbextensions_configurator \
                  jupyterlab-language-pack-ja-JP \
-                 nbgrader==0.8.5 jupyterhub==4.0.2 \
+                 nbgrader==0.8.5 jupyterhub==4.1.5 \
                  git+https://github.com/NII-cloud-operation/Jupyter-multi_outputs \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_nblineage \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_index \
