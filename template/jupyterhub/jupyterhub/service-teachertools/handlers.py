@@ -375,6 +375,10 @@ class TeacherToolsUpdateHandler(TeacherToolsOutputHandler):
                 self.log.warning(f'User {grade["student"]} skipped because user info is not exist (maybe the user never logged in).')
                 continue
 
+            # 非learner（教師ユーザ）の成績が入っているとMoodle側で400エラーになるため、除く
+            if user['name'] == grade['student']:
+                continue
+
             # TODO uidのprefix指定オプション対応(現状固定で、moodleでのid+1000がuid)
             try:
                 score = Score(
