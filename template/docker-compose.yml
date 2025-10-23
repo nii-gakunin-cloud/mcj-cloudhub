@@ -1,6 +1,6 @@
 services:
   db:
-    image: docker.io/bitnami/mariadb:latest
+    image: mariadb:lts
     environment:
       - MARIADB_USER=${MARIADB_USER?Variable not set}
       - MARIADB_PASSWORD=${MARIADB_PASSWORD?Variable not set}
@@ -12,15 +12,16 @@ services:
       - MARIADB_DATABASE_JUPYTERHUB=${MARIADB_DATABASE_JUPYTERHUB:-jupyterhub}
     volumes:
       - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
-      - 'db_data:/bitnami/db'
+      - 'db_data:/var/lib/mysql:Z'
     networks:
       - default
     restart: always
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 3
   moodle:
     build:
       context: moodle
@@ -33,16 +34,16 @@ services:
       - MOODLE_DATABASE_HOST=db
       - MOODLE_DATABASE_PORT_NUMBER=${MARIADB_PORT:-3306}
       - MOODLE_DATABASE_USER=${MARIADB_USER?Variable not set}
-      - MOODLE_DATABASE_NAME=${MARIADB_DATABASE_MOODLE:-moodle_db}
       - MOODLE_DATABASE_PASSWORD=${MARIADB_PASSWORD?Variable not set}
+      - MOODLE_DATABASE_NAME=${MARIADB_DATABASE_MOODLE:-moodle}
       - MOODLE_HOST=${MOODLE_HOST:-localhost/moodle}
       - MOODLE_REVERSEPROXY=true
       - MOODLE_SSLPROXY=true
       - MOODLE_USERNAME=${MOODLE_USERNAME:-admin}
       - MOODLE_EMAIL=${MOODLE_EMAIL:-admin@example.com}
-      - MOODLE_PASSWORD=${MARIADB_PASSWORD?Variable not set}
+      - MOODLE_PASSWORD=${MOODLE_PASSWORD?Variable not set}
       - MOODLE_LANG=ja
-      #- BITNAMI_DEBUG=true # 詳細ログ出力
+      - BITNAMI_DEBUG=true # 詳細ログ出力
     volumes:
       - 'moodle_data:/bitnami/moodle'
       - 'moodledata_data:/bitnami/moodledata'
@@ -81,9 +82,10 @@ services:
       NB_NODE_ROLE: manager # Ignored because this is not swarm
       # LTI_METHOD: {{get_course_member_method}}
       # LMS_API_TOKEN: {{lms_api_token}}
+      # TODO changethis
       TEMPLATE_DIR_HOST: "/home/user01/dev/mcj-cloudhub/template/jupyterhub"
       HOME_DIR_ROOT_HOST: "/home/user01/dev/mcj-cloudhub/template/mcj-data/jupyter"
-      SHARE_DIR_ROOT_HOST: "/home/user01/dev/mcj-cloudhub/template/mcj-data/exchange"
+      SHARE_DIR_ROOT_HOST: "/home/user01/dev/mcj-cloudhub/template/mcj-data/jupytershare"
       NOTEBOOK_IMAGE: ${NOTEBOOK_IMAGE:-mcj-cloudhub-nb:notebook-6.5.4}
       LMS_PLATFORM_ID: ${LMS_PLATFORM_ID:-http://localhost}
       LMS_CLIENT_ID: ${LMS_CLIENT_ID:-issuedbylms}

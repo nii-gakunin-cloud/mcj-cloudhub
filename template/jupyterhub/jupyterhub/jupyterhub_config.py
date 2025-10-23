@@ -50,7 +50,7 @@ ldap_password = os.environ['LDAP_PASSWORD']
 ldap_server = os.getenv('LDAP_SERVER', 'ldap:1389')
 ldap_base_dn = 'ou=People,dc=jupyterhub,dc=server,dc=sample,dc=jp'
 ldap_manager_dn = f'cn={os.getenv("LDAP_ADMIN", "Manager")},'\
-                    'dc=jupyterhub,dc=server,dc=sample,dc=jp'
+                  'dc=jupyterhub,dc=server,dc=sample,dc=jp'
 
 database_dbhost = os.getenv('DB_HOST', 'db')
 database_dbname = os.getenv('DB_NAME', 'jupyterhub')
@@ -263,7 +263,7 @@ c.DockerSpawner.notebook_dir = '~'
 
 # Single-user container is removed when stop
 # Set False for checking container logs when not spawn
-# c.DockerSpawner.remove = False
+c.DockerSpawner.remove = True
 
 # this is the network name for jupyterhub in docker-compose.yml
 # with a leading 'swarm_' that docker-compose adds

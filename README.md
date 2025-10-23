@@ -100,6 +100,92 @@ VCノード（ベースコンテナ）は役割に応じて以下のものに分
   * 起動する数は任意で、VMの性能や利用者数を勘案して設定する（０以上）
 
 
+## クイックスタート(For Developers)
+
+検証用に、単一マシン上でMoodle・MCJ-Cloudhubを起動する手順を以下に示します。  
+
+### リポジトリのクローン
+
+```
+git clone https://github.com/nii-gakunin-cloud/mcj-cloudhub.git
+```
+
+### 起動スクリプトの実行
+
+```
+cd ./mcj-cloudhub/template
+bash run.sh
+```
+
+### LTI認証用設定
+
+Moodleの外部ツール設定で設定する公開鍵を確認する。  
+
+```
+docker compose exec jupyterhub cat /jupyterdata/secrets/lti_pubkey.pem
+```
+
+moodleへログインする  
+https://localhost/moodle/
+- ユーザ（デフォルト）: `admin`/`changethis`
+- ブラウザによってSSLの警告が出ますが、無視して進めてください。
+
+外部ツール設定を行う  
+
+https://localhost/moodle/mod/lti/toolconfigure.php
+
+設定内容は、[設定例ノートブック](notebooks/021-Moodleの外部ツール設定例（lti1.3&JupyterHub）.ipynb)を参照
+設定後、クライアントシークレットを確認する。  
+
+- ツールURL: `https://localhost`
+- ログイン開始URL: `https://localhost/hub/lti13/oauth_login`
+- カスタムパラメータ: `https://localhost/hub/lti13/oauth_callback`
+
+`.env`の以下の部分に、クライアントシークレットを指定する。
+
+```
+LMS_CLIENT_ID=XXXXXXXXXXXXXXX
+```
+
+設定内容を反映するため、Jupyterhubを再起動する。
+
+```
+docker compose rm -sfv jupyterhub && docker compose up -d jupyterhub
+```
+
+Moodleでコース作成・外部ツール利用設定を行い、Jupyterhubへのアクセス・動作確認を行う。
+
+### 削除（後始末）
+
+全てのデータを削除する。  
+
+```
+docker compose down -v
+docker network rm jupyterhub_public
+rm -rf mcj-data
+```
+
+### debug
+
+#### ltiparam確認（Jupyterhub）
+
+`https://localhost/hub/lti13/config`
+
+#### ユーザが見つからない場合
+
+- ldapに登録されているか？
+
+```
+docker compose exec ldap ldapsearch -x -H ldap://localhost:1389 -D "cn=admin,dc=jupyterhub,dc=server,dc=sample,dc=jp" -w changethis -b ou=People,dc=jupyterhub,dc=server,dc=sample,dc=jp
+```
+
+#### `403: '_xsrf' argument missing from POST`
+
+Moodle側外部ツール設定にて、ログイン開始URL・リダイレクトURIの設定を誤っている状態で起きる場合がある。
+
+
+#### `401: Audience doesn't match`
+
 ## 外部発表（2025.3.5現在）
 Yamaguchi-hubは、山口大学オンプレミス環境で運用中のシステムを指します。MCJ-CloudHubは、Yamaguchi-hubをベースに拡張を行い、OCSテンプレートから構築・運用可能としたシステムを指します。
 
