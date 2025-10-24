@@ -726,7 +726,7 @@ def auth_state_hook(spawner, auth_state):
         'PATH': f'{homedir_container}/.local/bin:' +
                 f'{homedir_container}/bin:/usr/local/bin:/usr/local/sbin:' +
                 '/usr/bin:/usr/sbin:/bin:/sbin:/opt/conda/bin:' +
-                f'{homedir_container}/tools',
+                '/tmp/pip/bin',
         'NB_USER': lms_username,
         'PWD': homedir_container,
         'NB_UID': uid_num,
