@@ -733,6 +733,7 @@ def auth_state_hook(spawner, auth_state):
         'NB_GID': gid_num,
         'HOME': homedir_container,
         'CHOWN_HOME': 'yes',
+        'CHOWN_EXTRA': f'{homedir_container}',
         'CHOWN_EXTRA_OPTS': '-R',
     }
     if os.getenv('ENABLE_CUSTOM_SETUP'):
