@@ -54,6 +54,7 @@ RUN python -m lc_wrapper.ipython.install && \
     jupyter nbextension install --py lc_wrapper --sys-prefix && \
     jupyter nbextension enable --py lc_wrapper --sys-prefix && \
     jupyter nblineage quick-setup && \
+    jupyter nbextension enable nblineage --py --sys-prefix && \
     jupyter nbextension install --py lc_multi_outputs --sys-prefix && \
     jupyter nbextension enable --py lc_multi_outputs --sys-prefix && \
     jupyter nbextension disable --sys-prefix formgrader/main --section=tree && \
