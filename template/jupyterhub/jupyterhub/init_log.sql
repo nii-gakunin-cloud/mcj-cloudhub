@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS cell
  section                   VARCHAR,
  notebook_name             VARCHAR,
  jupyter_cell_id           VARCHAR,
+ nbgrader_cell_id          VARCHAR,
  CONSTRAINT UC_log UNIQUE (id, assignment)
 );
 CREATE TABLE IF NOT EXISTS student
