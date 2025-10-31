@@ -75,7 +75,7 @@ services:
         constraints:
           - node.role == manager
   ldap:
-    image: bitnami/openldap:2.5.14
+    image: bitnamilegacy/openldap:latest
     environment:
       - LDAP_SKIP_DEFAULT_TREE=yes
       #- LDAP_ALLOW_ANON_BINDING=no
@@ -94,7 +94,7 @@ services:
         constraints:
           - node.role == manager
   mariadb:
-    image: mariadb:10.5.15
+    image: mariadb:latest
     environment:
       MYSQL_ROOT_PASSWORD: {{db_password}}
       MYSQL_USER: {{db_user}}

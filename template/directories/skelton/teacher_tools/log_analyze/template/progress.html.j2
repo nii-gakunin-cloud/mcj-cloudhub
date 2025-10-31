@@ -2,9 +2,17 @@
 <html>
 <head>
     <title>{{ title }}</title>
+    {% if html_auto_refresh_sec and html_auto_refresh_sec > 0 %}
+    <span>{{ html_auto_refresh_sec }}秒間隔で画面をリロードします。</span>
     <meta http-equiv="refresh" content="{{ html_auto_refresh_sec }}" />
+    {% else %}
+    <span></span>
+    {% endif %}
     <meta charset="UTF-8">
     <style>
+    .table-wrap {
+  overflow-x: scroll;
+}
         table {
           border-collapse: collapse;
           border: 2px solid rgb(140 140 140);
@@ -54,33 +62,34 @@
     
     {% for notebook_name, cells in notebooks.items() %}
     <h2>【{{ notebook_name }}】</h2>
-    
-    <table>
-        <thead>
-            <tr>
-                <td>セル番号</td>
-                <td>項目番号</td>
-                {% for user in users %}
-                <td class="state">{{ user }}</td>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <td>セル番号</td>
+                    <td>項目番号</td>
+                    {% for user in users %}
+                    <td class="state">{{ user }}</td>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for cell in cells %}
+                <tr>
+                    <td><a href="#cell-id={{ cell.jupyter_cell_id }}" onclick="highlightElement('cell-id={{ cell.jupyter_cell_id }}')">cell_{{ loop.index }}</a></td>
+                    <td>{{ cell.section }}</td>
+                    {% for student_name in users %}
+                    {% if student_name in cell.student_results %}
+                    <td class="state-{{ cell.student_results[student_name]['exec_info']['state'] }}">{{ cell.student_results[student_name]['exec_info']['state'] }}</td>
+                    {% else %}
+                    <td class="state-undefined"></td>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
                 {% endfor %}
-            </tr>
-        </thead>
-        <tbody>
-            {% for cell in cells %}
-            <tr>
-                <td><a href="#cell-id={{ cell.jupyter_cell_id }}" onclick="highlightElement('cell-id={{ cell.jupyter_cell_id }}')">cell_{{ loop.index }}</a></td>
-                <td>{{ cell.section }}</td>
-                {% for student_name in users %}
-                {% if student_name in cell.student_results %}
-                <td class="state-{{ cell.student_results[student_name]['exec_info']['state'] }}">{{ cell.student_results[student_name]['exec_info']['state'] }}</td>
-                {% else %}
-                <td class="state-undefined"></td>
-                {% endif %}
-                {% endfor %}
-            </tr>
-            {% endfor %}
-        <tbody>
-    </table>
+            <tbody>
+        </table>
+    </div>
     {% include "html/"+assignment_name+"/"+notebook_name.replace(".ipynb", ".html") %}
     <br><br><br>
     {% endfor %}

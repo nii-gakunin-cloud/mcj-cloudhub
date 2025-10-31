@@ -24,13 +24,6 @@ ENV LANG=ja_JP.UTF-8
 ENV LANGUAGE=ja_JP:ja
 ENV LC_ALL=ja_JP.UTF-8
 
-# Init settings
-COPY start-notebook-mcj.sh /usr/local/bin/start-notebook-mcj.sh
-COPY start-singleuser-mcj.sh /usr/local/bin/start-singleuser-mcj.sh
-RUN chmod 4755 /usr/local/bin/start-notebook-mcj.sh /usr/local/bin/start-singleuser-mcj.sh
-CMD ["start-notebook-mcj.sh"]
-HEALTHCHECK NONE
-
 # setup for jupyter
 COPY ldap-auth-config /etc/auth-client-config/profile.d/ldap-auth-config
 COPY ldap.conf /etc/ldap.conf
@@ -50,7 +43,8 @@ RUN pip3 install jupyter-server>2 \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_index \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_wrapper
 
-# RUN pip3 install --upgrade jupyter-server==2.12.5
+# htmlの自動リロードに失敗するためコメントアウト
+#RUN pip3 install --upgrade jupyter-server==2.12.5
 
 RUN python -m lc_wrapper.ipython.install && \
     jupyter nbextension install --sys-prefix --py notebook_index && \
@@ -59,6 +53,10 @@ RUN python -m lc_wrapper.ipython.install && \
     jupyter nbextension enable --sys-prefix --py nbgrader && \
     jupyter nbextension install --py lc_wrapper --sys-prefix && \
     jupyter nbextension enable --py lc_wrapper --sys-prefix && \
+    jupyter nblineage quick-setup && \
+    jupyter nbextension enable nblineage --py --sys-prefix && \
+    jupyter nbextension install --py lc_multi_outputs --sys-prefix && \
+    jupyter nbextension enable --py lc_multi_outputs --sys-prefix && \
     jupyter nbextension disable --sys-prefix formgrader/main --section=tree && \
     jupyter serverextension disable --sys-prefix nbgrader.server_extensions.formgrader && \
     jupyter nbextension disable --sys-prefix course_list/main --section=tree && \
@@ -68,6 +66,18 @@ RUN python -m lc_wrapper.ipython.install && \
     jupyter labextension disable nbgrader:course-list && \
     jupyter labextension disable nbgrader:create-assignment && \
     rm -rf /var/lib/apt/lists/*
+
+ARG PATCH_DIR=/tmp/patches
+COPY patches $PATCH_DIR
+
+# setup files for Nbgrader
+COPY nbgrader/nbgrader_config.py /etc/jupyter/nbgrader_config.py
+RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
+RUN patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exchange.py $PATCH_DIR/exchange.py.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py $PATCH_DIR/release_assignment.py.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js $PATCH_DIR/manage_assignments.js.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js $PATCH_DIR/manage_submissions.js.patch && \
+    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js $PATCH_DIR/gradebook_assignments.js.patch
 
 # For iframe
 RUN <<EOF
@@ -82,14 +92,49 @@ c.ServerApp.tornado_settings = {
 EOT
 EOF
 
-ARG PATCH_DIR=/tmp/patches
-COPY patches $PATCH_DIR
+# kernel setting not to pip install to home dir because it is mounted to host
+RUN <<EOF
+cat << EOT > /opt/conda/share/jupyter/kernels/python3/kernel.json
+{
+ "argv": [
+  "/opt/conda/bin/python",
+  "-m",
+  "ipykernel_launcher",
+  "-f",
+  "{connection_file}"
+ ],
+ "display_name": "Python 3 (ipykernel)",
+ "language": "python",
+ "metadata": {
+  "debugger": true
+ },
+ "env": {"PYTHONUSERBASE": "/tmp/pip"}
+}
+EOT
+EOF
 
-# setup files for Nbgrader
-COPY nbgrader/nbgrader_config.py /etc/jupyter/nbgrader_config.py
-RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
-RUN patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/exchange.py $PATCH_DIR/exchange.py.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/exchange/default/release_assignment.py $PATCH_DIR/release_assignment.py.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_assignments.js $PATCH_DIR/manage_assignments.js.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/manage_submissions.js $PATCH_DIR/manage_submissions.js.patch && \
-    patch /opt/conda/lib/python3.11/site-packages/nbgrader/server_extensions/formgrader/static/js/gradebook_assignments.js $PATCH_DIR/gradebook_assignments.js.patch
+RUN <<EOF
+cat << EOT > /usr/local/share/jupyter/kernels/lc_wrapper/kernel.json
+{
+    "argv": [
+        "/opt/conda/bin/python",
+        "-m",
+        "lc_wrapper.ipython",
+        "-f",
+        "{connection_file}"
+    ],
+    "display_name": "LC_wrapper",
+    "language": "python",
+    "env": {"PYTHONUSERBASE": "/tmp/pip"}
+}
+EOT
+EOF
+
+# ref: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/common.html#startup-hooks
+# Executed before standard setup
+COPY start-notebook-hook-mcj.sh /usr/local/bin/start-notebook.d/start-notebook-hook-mcj.sh
+
+# Executed after standard setup, before right before the Server launches
+COPY start-singleuser-mcj.sh /usr/local/bin/before-notebook.d/start-singleuser-mcj.sh
+
+HEALTHCHECK NONE

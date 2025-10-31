@@ -1,0 +1,133 @@
+{% extends "page.html" %}
+
+{% block meta %}
+{% endblock %}
+{% block main %}
+
+<div class="container">
+
+    <h1>成績送信</h1>
+    <h4>成績をLMSに送信します。nbgraderにて、リリース済みの課題の成績が送信可能です。</h4>
+    <h4>コースは現在ログイン中のコースが対象となります。</h4>
+
+    <h2>現在のコース: <span id="course">{{ course_name }}</span></h2>
+
+    <table class="table" id="assignments">
+        <thead>
+            <tr>
+                <th scope="col"><input type="checkbox" id="select-all"/></th>
+                <th scope="col">課題名</th><th scope="col">ステータス</th><th scope="col">メッセージ</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for assignment in assignments %}
+            <tr>
+                <td><input type="checkbox" class="select-item checkbox"/></td>
+                <td><span class="assign-name">{{assignment}}</span></td>
+                <td><span class="item-result"></span></td>
+                <td><span class="item-message"></span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <button type="button" type="button" class="btn btn-primary" id="btnSubmit">送信</button>
+    <span id="result"></span>
+    <a href="/hub/home">戻る</a>
+</div>
+
+<script type="module">
+    const statusMessage = {NONE: '', WAIT: '送信待機中',
+                            SENDING: '送信中', SUCCESS: '送信完了',
+                            FAILED: '送信失敗'}
+    const elemAssignmentsTblBody = document.getElementById("assignments").getElementsByTagName("tbody")[0];
+
+    async function postScore(assignmentName) {
+        const url = "{{post_url}}";
+        const body = {
+            assignment: assignmentName
+        }
+        try {
+            const response = await fetch(url, {
+                method:"POST",
+                credentials: 'same-origin',
+                headers:{
+                    "X-XSRFToken": "{{ xsrf_token }}",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(body)
+            })
+            if (!response.ok) {
+                throw new Error(`${response.status}: ${response.statusText}`);
+            }
+            return await response.json();
+        } catch (e) {
+            console.error(e);
+            throw e
+        }
+    }
+
+    async function initStatusAll(status="", message="") {
+        // ステータスを初期化する
+        document.querySelectorAll('.item-result').forEach((elem) => {
+            elem.textContent = status;
+        });
+        document.querySelectorAll('.item-message').forEach((elem) => {
+            elem.textContent = message;
+        });
+    }
+
+    async function handleBtnSubmitClick(e) {
+        // 課題一覧について、チェックが付いているものの送信処理を行う
+        initStatusAll();
+        const rows = elemAssignmentsTblBody.getElementsByTagName('tr')
+        for (const row of Array.from(rows)) {
+            const checked = row.querySelector('.select-item.checkbox').checked;
+            if (!checked) {
+                continue
+            }
+
+            const assignmentName = row.querySelector('.assign-name').textContent;
+            const elemResult = row.querySelector('.item-result');
+            const elemMsg = row.querySelector('.item-message');
+            elemResult.textContent = statusMessage.SENDING;
+            try {
+                const response = await postScore(assignmentName);
+                elemResult.textContent = statusMessage.SUCCESS;
+            } catch (e) {
+                elemResult.textContent = statusMessage.FAILED;
+                elemMsg.textContent = e;
+            }
+        }
+    }
+
+    async function checkAll() {
+        const elems = document.getElementsByClassName('select-item checkbox');
+        for (const elem of Array.from(elems)) {
+            elem.checked = true;
+        }
+    }
+
+    async function uncheckAll() {
+        const elems = document.getElementsByClassName('select-item checkbox');
+        for (const elem of Array.from(elems)) {
+            elem.checked = false;
+        }
+    }
+
+    async function handleSelectAllChanged(e) {
+        if (e.target.checked) {
+            checkAll();
+        } else {
+            uncheckAll();
+        }
+    }
+
+    document.getElementById("btnSubmit").addEventListener('click', handleBtnSubmitClick);
+    document.getElementById("select-all").addEventListener('change', handleSelectAllChanged);
+    document.getElementById("assignments").value = assignments;
+</script>
+
+{% endblock %}
+
+
+

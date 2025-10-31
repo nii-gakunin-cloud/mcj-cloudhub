@@ -109,6 +109,7 @@ nbgraderを利用し、学生用課題ファイルの生成（`generate`）・�
 |   3 |                                | section                        | VARCHAR()                      |          |                      |章番号                                |
 |   4 |                                | notebook_name                  | VARCHAR()                      |          |                      |ノートブック名                                |
 |   5 |                                | jupyter_cell_id                  | VARCHAR()                      |          |                      |jupyterで自動発番されるセルID                                |
+|   5 |                                | nbgrader_cell_id                  | VARCHAR()                      |          |                      |nbgraderのcreate assignment機能で設定するセルのID                                |
 
 ### student
 

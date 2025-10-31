@@ -1,3 +1,0 @@
-proxy_servers:
-    http: http://proxy.sampledomain.ac.jp:8080
-    https: http://proxy.sampledomain.ac.jp:8080
