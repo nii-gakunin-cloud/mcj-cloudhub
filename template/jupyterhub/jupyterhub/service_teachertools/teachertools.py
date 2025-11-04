@@ -70,7 +70,7 @@ class TeacherToolsService(Application):
     @default("template_paths")
     def _template_paths_default(self):
         return [
-            os.path.join("/etc/jupyterhub/service-teachertools", "templates"),
+            os.path.join("/etc/jupyterhub/service_teachertools", "templates"),
             os.path.join(self.data_files_path, "templates"),
         ]
 

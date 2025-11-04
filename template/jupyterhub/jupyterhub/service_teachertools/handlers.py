@@ -269,7 +269,8 @@ def update_or_create_log(db_url: str,  notebook_name: str,
             log_lc_notebook_meme=log['lc_notebook_meme'],
             log_execute_reply_status=log['execute_reply_status'],
         ))
-
+    if len(values) == 0:
+        return
     engine = create_engine(db_url)
     with Session(engine) as session:
         crud.create_logs(session=session, log_creates=values, skip_exists=True)

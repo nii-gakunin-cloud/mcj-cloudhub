@@ -186,7 +186,7 @@ c.JupyterHub.services.append(
         'url': f'http://0.0.0.0:{service_teachertools_port}',
         'command': [
             sys.executable,
-            "/etc/jupyterhub/service-teachertools/teachertools.py",
+            "/etc/jupyterhub/service_teachertools/teachertools.py",
             '--lms-token-endpoint',
             token_endpoint,
             '--lms-client-id',
