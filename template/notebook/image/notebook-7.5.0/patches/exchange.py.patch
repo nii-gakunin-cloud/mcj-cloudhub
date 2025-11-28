@@ -1,0 +1,4 @@
+58c58
+<         if not check_directory(self.root, write=True, execute=True):
+---
+>         if not check_directory(self.root, write=False, execute=True):

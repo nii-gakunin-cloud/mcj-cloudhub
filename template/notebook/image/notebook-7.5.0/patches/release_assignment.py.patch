@@ -1,0 +1,6 @@
+44,45c44,45
+<             old_perms = oct(os.stat(self.root)[ST_MODE] & 0o777)
+<             new_perms = oct(perms & 0o777)
+---
+>             old_perms = oct(os.stat(self.root)[ST_MODE] & 0o755)
+>             new_perms = oct(perms & 0o755)
