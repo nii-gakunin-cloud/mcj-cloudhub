@@ -27,7 +27,7 @@ c.ExchangeReleaseFeedback.timezone = TIMESTAMP_TIMEZONE
 c.ExchangeSubmit.timestamp_format = TIMESTAMP_FORMAT
 c.ExchangeSubmit.timezone = TIMESTAMP_TIMEZONE
 c.ExecutePreprocessor.startup_timeout = 120
-c.ExecutePreprocessor.timeout = 15
+c.ExecutePreprocessor.timeout = 60
 
 # NbGraderAPI is used internal by formgrader but formgrader timezone conf not passed to it, so set globally here.
 c.NbGraderAPI.timezone = "JST"
