@@ -46,7 +46,8 @@ RUN pip3 --no-cache-dir install jupyter_nbextensions_configurator && \
                  ${nblineage_release_url}${nblineage_release_tag}/nblineage-${nblineage_release_tag}.tar.gz \
                  ${lc_wrapper_release_url}${lc_wrapper_release_tag}/lc_wrapper-${lc_wrapper_release_tag}.tar.gz \
                  ${lc_index_release_url}${lc_index_release_tag}/lc_index-${lc_index_release_tag}.tar.gz \
-                 bash_kernel
+                 bash_kernel \
+                 elasticsearch
 
 RUN pip --no-cache-dir install six bash_kernel && \
     jupyter nblineage quick-setup --sys-prefix && \

@@ -42,7 +42,8 @@ RUN pip3 install jupyter-server>2 \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_index.git@e1d605e9b15182268fc628323872d8a1bf646209 \
                  https://github.com/NII-cloud-operation/Jupyter-LC_nblineage/tarball/master \
                  git+https://github.com/NII-cloud-operation/Jupyter-LC_nblineage.git@c310decc8ae6aa597ff6129aca5952012d7e9896 \
-                 git+https://github.com/NII-cloud-operation/Jupyter-LC_wrapper
+                 git+https://github.com/NII-cloud-operation/Jupyter-LC_wrapper \
+                 elasticsearch
 
 # htmlの自動リロードに失敗するためコメントアウト
 #RUN pip3 install --upgrade jupyter-server==2.12.5
