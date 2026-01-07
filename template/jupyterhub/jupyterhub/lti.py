@@ -12,10 +12,10 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 IMS_LTI13_NRPS_ASSERT_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer'
 
 
-def generate_keypair() -> bytes:
+def generate_keypair(privkey=None) -> bytes:
 
     # 鍵の生成
-    private_key = rsa.generate_private_key(
+    private_key = privkey if privkey is not None else rsa.generate_private_key(
         public_exponent=65537,
         key_size=2048,
         backend=default_backend()
@@ -57,9 +57,15 @@ def confirm_key_exist(path='/etc/jupyterhub'):
             public_key = serialization.load_pem_public_key(
                 key_file.read(),
             )
-
     else:
-        private_key, public_key = generate_keypair()
+        private_key = None
+        if os.path.isfile(privkey):
+            with open(privkey, "rb") as key_file:
+                private_key = serialization.load_pem_private_key(
+                    key_file.read(),
+                    password=None,
+                )
+        private_key, public_key = generate_keypair(private_key)
         with open(pubkey, "w+b") as f:
             f.write(public_key)
         with open(privkey, "w+b") as f:
