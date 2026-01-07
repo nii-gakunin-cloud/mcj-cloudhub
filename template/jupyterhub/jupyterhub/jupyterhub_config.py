@@ -223,6 +223,14 @@ c.JupyterHub.load_roles.append(
     }
 )
 
+# Use JUPTYERHUB_API_TOKEN for service teacher tools
+# Ref: https://discourse.jupyter.org/t/add-scopes-to-jupyterhub-api-token-through-helm-chart-values/18543
+c.Spawner.server_token_scopes = [
+    "access:servers!server",
+    "users:activity!user",
+    f"access:services!service={service_teachertools_name}",
+]
+
 # The external tool's client id as represented within the platform (LMS)
 c.LTI13Authenticator.client_id = os.getenv('LMS_CLIENT_ID')
 # default 'email'
