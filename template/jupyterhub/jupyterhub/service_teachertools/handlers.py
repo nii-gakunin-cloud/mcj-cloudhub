@@ -508,7 +508,7 @@ class TeacherToolsApiHandler(HubAuthenticated, web.RequestHandler):
                 self.log.warning(exception.log_message)
                 reason = exception.reason
                 if 403 == status_code and not reason:
-                    reason = 'Token may be invalid'
+                    reason = 'Permission denied'
                 self.finish({
                     "status": status_code,
                     "reason": reason,
@@ -533,7 +533,8 @@ class TeacherToolsLogDBHandler(TeacherToolsApiHandler):
             course = self.json_data['course']
         except KeyError as e:
             raise web.HTTPError(
-                HTTPStatus.BAD_REQUEST, reason=f"Missing required paramater: [{e}]"
+                HTTPStatus.BAD_REQUEST,
+                reason=f"Missing required paramater: [{e}]"
             )
 
         dt_from = self.json_data.get('from')
@@ -548,10 +549,10 @@ class TeacherToolsLogDBHandler(TeacherToolsApiHandler):
             opt['assignment'] = assignment
         try:
             db_path = log2db(course, user["name"], self.homedir, **opt)
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             raise web.HTTPError(
                 HTTPStatus.BAD_REQUEST,
-                f"directory not found: {os.path.join('~', str(e))}"
+                reason=f"Course not found: {course}"
             )
 
         res = dict()
@@ -812,4 +813,3 @@ class TeacherToolsViewHandler(TeacherToolsHandler):
                                  parsed_scopes=user.get('scopes') or [],
                                  )
         )
-
