@@ -2,6 +2,8 @@ import os
 import re
 import shutil
 import sys
+import secrets
+import string
 from datetime import datetime
 from itertools import chain, zip_longest
 from pathlib import Path
@@ -26,6 +28,20 @@ NB_GROUP = {
     "group-b1": "[024789]*-*.ipynb",
     "group-c": "[034789]*-*.ipynb",
 }
+
+
+def generate_password(length=32):
+    alphabet = string.ascii_letters + string.digits + "!#$%&*+-=?@^_"
+
+    while True:
+        # ランダムに文字列を生成
+        password = ''.join(secrets.choice(alphabet) for _ in range(length))
+        
+        if (any(c.islower() for c in password)
+                and any(c.isupper() for c in password)
+                and any(c.isdigit() for c in password)
+                and any(c in "!#$%&*+-=?@^_" for c in password)):
+            return password
 
 
 def parse_headers(nb_path):
