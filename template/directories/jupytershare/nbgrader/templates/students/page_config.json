@@ -1,8 +1,0 @@
-{
-  "disabledExtensions": {
-    "nbgrader:formgrader": true,
-    "nbgrader:assignment-list": false,
-    "nbgrader:course-list": true,
-    "nbgrader:create-assignment": true
-  }
-}

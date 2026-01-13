@@ -126,4 +126,3 @@ def get_lms_lti_token(scopes: str | list, tool_url, private_key, token_endpoint,
         raise Exception("Failed to get nrps token from LMS. Public key in outer tool settings in LMS may be wrong")
 
     return response.json()['access_token']
-
