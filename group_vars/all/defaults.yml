@@ -1,8 +1,9 @@
-base_dir: "/srv/jupyterhub"
-certs_dir: "{{base_dir}}/certs"
+root_dir: "/srv"
+base_dir: "{{root_dir}}/mcjcloudhub"
 jupyterhub_dir: "{{base_dir}}/jupyterhub"
+mcjdata_dir: "{{jupyterhub_dir}}/mcj-data"
+certs_dir: "{{base_dir}}/certs"
 notebook_dir: "{{base_dir}}/notebook"
-jupyterhub_image_dir: "{{jupyterhub_dir}}/jupyterhub/image"
 notebook_image_dir: "{{notebook_dir}}/image"
 gid_teacher: 600
 gid_student: 601

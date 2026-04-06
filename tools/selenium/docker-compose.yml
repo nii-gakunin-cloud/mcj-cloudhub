@@ -28,10 +28,14 @@ services:
     command:
       - python
       - /app/main.py
-      - /app/accounts_file.yaml
+      - /app/accounts.yaml
       - http://localhost/
       - http://selenium-executer:4444/wd/hub
       - -i 0
+      - --headless
+      - --output_result
+      - -n
+      - mcjtest
     depends_on:
       selenium-executer:
         condition: service_healthy

@@ -1,0 +1,17 @@
+resource:
+  groups:
+    student:
+      mem_limit: 2G
+      cpu_limit: 0.5
+      mem_guarantee: 0
+      cpu_guarantee: 0
+    teacher:
+      mem_limit: 4G
+      cpu_limit: 0.5
+      mem_guarantee: 0
+      cpu_guarantee: 0
+cookie_max_age_days: 0.25
+cull_server:
+  cull_server_idle_timeout: 1800
+  cull_server_max_age: 0
+  cull_server_every: 0
