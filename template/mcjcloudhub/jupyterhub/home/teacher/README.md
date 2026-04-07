@@ -51,7 +51,18 @@ MCJ-CloudHub は、課題の配布・回収・採点に `nbgrader` を利用す�
 
     リリースした課題について学生の実行履歴を分析する場合は、Notebook 実行時に `LC_wrapper` 対応カーネルを利用してください。  
     MCJ-CloudHub 標準の Jupyter コンテナイメージに含まれる `Python 3` カーネルでは、`LC_wrapper` が有効です。  
-    詳細は `teacher_tools/log_analyze/README.md` を参照してください。
+    詳細は `teacher_tools/log_analyze/README.md` を参照してください。  
+
+    !!! note
+
+        ノートブックの各セルのIDが重複している場合、実行ログが正しく集計出来ない場合があります。（Notebookを複製して使いまわした場合）  
+        実行ログ分析を行う予定がある場合、課題ファイル作成前に以下を実行してください。  
+
+        ```
+        ls *.ipynb | xargs -I {} sh -c 'jupyter nblineage new-root-meme --log-level=DEBUG "{}" "{}_"; mv "{}_" "{}"'
+        ```
+
+        参照: [課題作成マニュアル（`teacher_tools/log_analyze/README.md`）](/実行ログ分析/)
 
 ### 2. 学生に課題を配布する
 
