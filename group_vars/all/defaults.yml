@@ -3,6 +3,7 @@ base_dir: "{{root_dir}}/mcjcloudhub"
 jupyterhub_dir: "{{base_dir}}/jupyterhub"
 mcjdata_dir: "{{jupyterhub_dir}}/mcj-data"
 certs_dir: "{{base_dir}}/certs"
+secret_dir: "/var/run/secrets"
 notebook_dir: "{{base_dir}}/notebook"
 notebook_image_dir: "{{notebook_dir}}/image"
 gid_teacher: 600

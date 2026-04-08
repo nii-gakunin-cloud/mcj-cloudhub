@@ -49,7 +49,6 @@ services:
       LDAP_ADMIN_PASSWORD: {{ldap_password}}
       EMAIL_DOMAIN: {{email_domain}}
       JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users | default('')}}"
-      CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}} # secrets
       TEACHER_GID: {{teacher_gid | default('600')}}
       STUDENT_GID: {{student_gid | default('601')}}
       NB_NODE_ROLE: manager
@@ -69,6 +68,7 @@ services:
 {% endif %}
       LMS_SUBDIR: {{lms_subdir | default('')}}
       JUPYTERHUB_SPAWNER_CLASS: "dockerspawner.SwarmSpawner"
+      CONFIGPROXY_AUTH_TOKEN: /run/secrets/configproxy_auth_token
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     deploy:
       replicas: 1
@@ -77,12 +77,16 @@ services:
       placement:
         constraints:
           - node.role == manager
+    secrets:
+       - configproxy_auth_token
+       - lti_privkey.pem
+       - lti_pubkey.pem
   jupyterhub-proxy:
     image: jupyterhub/configurable-http-proxy
     networks:
       - {{swarm_network}}
     environment:
-      CONFIGPROXY_AUTH_TOKEN: {{configproxy_auth_token}}
+      CONFIGPROXY_AUTH_TOKEN: /run/secrets/configproxy_auth_token
       JUPYTERHUB_FQDN: {{master_fqdn}}
     deploy:
       replicas: 1
@@ -91,6 +95,8 @@ services:
       placement:
         constraints:
           - node.role == manager
+    secrets:
+       - configproxy_auth_token
   proxy:
     image: nginx
     ports:
@@ -147,3 +153,10 @@ networks:
     ipam:
       config:
         - subnet: {{jupyterhub_backend}}
+secrets:
+  configproxy_auth_token:
+    file: /run/secrets/configproxy_auth_token
+  lti_privkey.pem:
+    file: /run/secrets/lti_privkey.pem
+  lti_pubkey.pem:
+    file: /run/secrets/lti_pubkey.pem
