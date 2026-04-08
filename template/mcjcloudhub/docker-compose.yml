@@ -66,6 +66,7 @@ services:
       LMS_URL: ${LMS_URL}
       LMS_SUBDIR: ${LMS_SUBDIR}
       JUPYTERHUB_SPAWNER_CLASS: ${JUPYTERHUB_SPAWNER_CLASS:-dockerspawner.DockerSpawner}
+      SECRET_DIR: ${DATA_ROOT:-/jupyterdata}/secrets
     command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
     depends_on:
       db:

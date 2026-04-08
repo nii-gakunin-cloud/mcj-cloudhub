@@ -121,7 +121,7 @@ USER_CONF_DIR = os.path.join(JUPYTERHUB_DIR, 'conf.d')
 SHARE_DIR_ROOT_JUPYTERHUB = '/jupyterdata'
 HOME_DIR_ROOT = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'jupyter')
 SHARE_DIR_ROOT = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'jupytershare') # or exchange/jupytershare?
-SECRET_DIR = os.path.join(SHARE_DIR_ROOT_JUPYTERHUB, 'secrets')
+SECRET_DIR = os.getenv('SECRET_DIR', os.path.join('/run', 'secrets'))
 os.makedirs(SECRET_DIR, exist_ok=True)
 
 # Paths in singleuser container
@@ -548,12 +548,16 @@ def get_nrps_token():
                              lms_client_id)
 
 
-def get_course_students_by_nrps(url, default_key='user_id'):
+def get_course_students_by_nrps(url: str, default_key: str = 'user_id') -> list:
 
     global nrps_token
     if nrps_token is None:
-        nrps_token = get_nrps_token()
-        logger.info('Created LMS access token')
+        try:
+            nrps_token = get_nrps_token()
+            logger.info('Created LTI access token')
+        except Exception as e:
+            logger.error('Failed to get LTI access token so cannot LTI functions such as getting student info: %s', e)
+            nrps_token = None
     headers = {'Authorization': f'Bearer {nrps_token}'}
     response = requests.get(
         url,
@@ -562,15 +566,22 @@ def get_course_students_by_nrps(url, default_key='user_id'):
     )
     if response.status_code == 401:
 
-        logger.info('LMS access token expired')
-        nrps_token = get_nrps_token()
-        logger.info('LMS access token successfully recreated')
+        logger.warning('LTI access token expired')
+        try:
+            nrps_token = get_nrps_token()
+            logger.info('LTI access token successfully recreated')
+        except Exception as e:
+            logger.error('Failed to get LTI access token so cannot LTI functions such as getting student info: %s', e)
+            nrps_token = None
         headers = {'Authorization': f'Bearer {nrps_token}'}
         response = requests.get(
             url,
             headers=headers,
             timeout=30
         )
+
+    if nrps_token is None:
+        return []
 
     students = list()
     for member in response.json().get('members'):
