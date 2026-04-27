@@ -51,7 +51,7 @@ services:
       JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users | default('')}}"
       TEACHER_GID: {{teacher_gid | default('600')}}
       STUDENT_GID: {{student_gid | default('601')}}
-      NB_NODE_ROLE: manager
+      NB_NODE_ROLE: {{node_role | default('manager')}}
       TEMPLATE_DIR_HOST: ${PWD}
       MCJ_DATA_HOST: {{share_directory_root | default('${PWD}')}}/mcj-data
       NOTEBOOK_IMAGE: "{{singleuser_image}}:{{singleuser_image_tag}}"
