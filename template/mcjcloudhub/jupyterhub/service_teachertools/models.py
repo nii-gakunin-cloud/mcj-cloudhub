@@ -73,7 +73,7 @@ class LogBase(SQLModel):
     log_sequence: int = Field(default=0)
     notebook_name: str | None = Field(default=None, max_length=255)
     log_json: Dict = Field(default_factory=dict, sa_column=Column(JSON))
-    log_code: str | None = Field(default=None, max_length=255)
+    log_code: str | None = Field(default=None)
     log_path: str | None = Field(default=None, max_length=255)
     log_start: datetime | None = Field(default=None)
     log_end: datetime | None = Field(default=None)
