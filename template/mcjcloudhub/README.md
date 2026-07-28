@@ -92,8 +92,8 @@ ID: `admin` PW: `changethis`（`.env`に記載）
 <details>
 <summary>ツール情報の場所</summary>
 
-<img src="../../images/mdl_outer_tools.png" alt="Moodle の外部ツール一覧画面">
-<img src="../../images/mdl_outer_tool_info.png" alt="Moodle の外部ツール情報画面">
+<img src="images/mdl_outer_tools.png" alt="Moodle の外部ツール一覧画面">
+<img src="images/mdl_outer_tool_info.png" alt="Moodle の外部ツール情報画面">
 
 </details>
 
@@ -106,6 +106,12 @@ ID: `admin` PW: `changethis`（`.env`に記載）
 
 ```
 make devrestartjh
+```
+
+MCJ-Cloudhubにログインした際に起動する、各ユーザ用環境ののDockerコンテナ（single-user コンテナ）イメージは`template`ディレクトリに移動したうえで、以下のコマンドでビルドできます。  
+
+```
+docker build notebook/image/notebook-7.5.0 -t mcj-cloudhub-nb:notebook-7.5.0
 ```
 
 Moodleにてコース作成・設定を行うことで、Jupyterhubにログイン可能となります。  
