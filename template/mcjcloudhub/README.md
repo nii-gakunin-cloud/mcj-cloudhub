@@ -46,8 +46,10 @@
 MoodleとJupyterhubを同じマシン上に起動します。
 
 まず、開発環境用のセットアップを行います。  
+以下のコマンドを `template/mcjcloudhub` ディレクトリにて実行します。  
 
 ```
+touch .env
 make devsetup
 ```
 
