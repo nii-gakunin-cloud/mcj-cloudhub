@@ -1,0 +1,162 @@
+services:
+  db:
+    image: mariadb:lts
+    environment:
+      # Use {{swarm_network}} user for jupyterhub
+      - MARIADB_USER={{db_user}}
+      - MARIADB_PASSWORD={{db_password}}
+      - MARIADB_CHARACTER_SET=utf8mb4
+      - MARIADB_COLLATE=utf8mb4_unicode_ci
+      - MARIADB_ROOT_PASSWORD={{db_root_password}}
+      - MARIADB_DATABASE_JUPYTERHUB={{db_name | default('jupyterhub')}}
+    volumes:
+      - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+      - 'db_data:/var/lib/mysql:Z'
+    networks:
+      - {{swarm_network}}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  jupyterhub:
+    image: mcj-cloudhub:latest
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - {{share_directory_root | default('${PWD}')}}/mcj-data:/jupyterdata # Must be created in advance
+      - {{jupyterhub_dir}}/mcj-data/conf.d:/etc/jupyterhub/conf.d # User conf
+      - {{jupyterhub_dir}}/jupyterhub_config.py:/etc/jupyterhub/jupyterhub_config.py:ro # For develop
+      # - ./test/custom.py:/etc/jupyterhub/custom.py:ro # For test
+      # - ./test/conf.d:/etc/jupyterhub/conf.d:ro # For test
+    networks:
+      - {{swarm_network}}
+    environment:
+      DOCKER_NETWORK_NAME: {{swarm_network}}
+      JUPYTERHUB_FQDN: {{master_fqdn}}
+      DB_USER: {{db_user}}
+      DB_PASSWORD: {{db_password}}
+      DB_NAME: {{db_name | default('jupyterhub')}}
+      DB_HOST: "db:3306"
+      LDAP_ADMIN_USERNAME: {{ldap_admin}}
+      LDAP_ADMIN_PASSWORD: {{ldap_password}}
+      EMAIL_DOMAIN: {{email_domain}}
+      JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users | default('')}}"
+      TEACHER_GID: {{teacher_gid | default('600')}}
+      STUDENT_GID: {{student_gid | default('601')}}
+      NB_NODE_ROLE: {{node_role | default('manager')}}
+      TEMPLATE_DIR_HOST: ${PWD}
+      MCJ_DATA_HOST: {{share_directory_root | default('${PWD}')}}/mcj-data
+      NOTEBOOK_IMAGE: "{{singleuser_image}}:{{singleuser_image_tag}}"
+      LMS_PLATFORM_ID: {{lms_platform_id}}
+      LMS_CLIENT_ID: {{lms_cliend_id}}
+      LTI_USERNAME_KEY: "sub"
+      DEFAULT_URL: {{default_url}}
+      ENABLE_CUSTOM_SETUP: "{{enable_custom_setup | default('')}}"
+      DATA_ROOT: /jupyterdata
+{% if lms_url is defined %}
+      LMS_URL: {{ lms_url }}
+{% else %}
+      LMS_URL: {{ lms_platform_id }}
+{% endif %}
+      LMS_SUBDIR: {{lms_subdir | default('')}}
+      JUPYTERHUB_SPAWNER_CLASS: "dockerspawner.SwarmSpawner"
+      CONFIGPROXY_AUTH_TOKEN: /run/secrets/configproxy_auth_token
+    command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+    secrets:
+       - configproxy_auth_token
+       - lti_privkey.pem
+       - lti_pubkey.pem
+  jupyterhub-proxy:
+    image: jupyterhub/configurable-http-proxy
+    networks:
+      - {{swarm_network}}
+    environment:
+      CONFIGPROXY_AUTH_TOKEN: /run/secrets/configproxy_auth_token
+      JUPYTERHUB_FQDN: {{master_fqdn}}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+    secrets:
+       - configproxy_auth_token
+  proxy:
+    image: nginx
+    ports:
+      - 443:443
+    volumes:
+      - ./nginx/templates/default:/etc/nginx/templates:ro
+      - {{certs_dir}}:/etc/nginx/certs:ro
+    networks:
+      - {{swarm_network}}
+    environment:
+      JUPYTERHUB_FQDN: {{master_fqdn}}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  ldap:
+    image: bitnamilegacy/openldap:latest
+    environment:
+      - LDAP_SKIP_DEFAULT_TREE=yes
+      #- LDAP_ALLOW_ANON_BINDING=no
+      - LDAP_ROOT=dc=jupyterhub,dc=server,dc=sample,dc=jp
+      - LDAP_ADMIN_USERNAME={{ldap_admin}}
+      - LDAP_ADMIN_PASSWORD={{ldap_password}}
+    networks:
+      - {{swarm_network}}
+    volumes:
+      - ./ldap/ldifs:/ldifs:ro
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+volumes:
+  db_data:
+    driver: local
+  jupyterhub_share:
+    driver: local
+networks:
+  {{swarm_network}}:
+    name: {{swarm_network}}
+    driver: overlay
+    ipam:
+      config:
+        - subnet: {{jupyterhub_backend}}
+secrets:
+  configproxy_auth_token:
+    file: /run/secrets/configproxy_auth_token
+  lti_privkey.pem:
+    file: /run/secrets/lti_privkey.pem
+  lti_pubkey.pem:
+    file: /run/secrets/lti_pubkey.pem

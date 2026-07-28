@@ -1,0 +1,19 @@
+[project]
+site_name = "MCJ-CloudHub"
+docs_dir = "docmerged"
+language = "ja"
+repo_url = "https//github.com/nii-gakunin-cloud/mcj-cloudhub"
+repo_name = "MCJ-CloudHub"
+nav = [
+    { "MCJ-CloudHub" = "README.md" },
+    { "利用の流れ" = "usage.md" },
+    { "環境構築" = ["環境構築.md", "動作確認ツール.md", "ユーザ用コンテナイメージ.md"] },
+    { "教員用マニュアル" = ["課題ファイル管理（nbgrader）.md", "実行ログ分析.md", "teachertools.md"] },
+    { "開発者向け" = "developers.md" },
+]
+
+[project.theme]
+features = [
+    "navigation.top",
+    "navigation.path"
+]

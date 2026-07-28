@@ -2,6 +2,8 @@ import os
 import re
 import shutil
 import sys
+import secrets
+import string
 from datetime import datetime
 from itertools import chain, zip_longest
 from pathlib import Path
@@ -26,6 +28,19 @@ NB_GROUP = {
     "group-b1": "[024789]*-*.ipynb",
     "group-c": "[034789]*-*.ipynb",
 }
+
+
+def generate_password(length=32):
+    alphabet = string.ascii_letters + string.digits
+
+    while True:
+        # ランダムに文字列を生成
+        password = ''.join(secrets.choice(alphabet) for _ in range(length))
+
+        if (any(c.islower() for c in password)
+                and any(c.isupper() for c in password)
+                and any(c.isdigit() for c in password)):
+            return password
 
 
 def parse_headers(nb_path):
@@ -389,14 +404,15 @@ def _get_dest_nb_path(src_nb_path, dest_dir):
     index = len([p for p in dest_path.glob(f"{prefix}*")]) + 1
     return str(dest_path / "{}_{:0>2}_{}".format(prefix, index, src_path.name))
 
+
 def get_diff(p1: dict, p2: dict):
     """辞書差分表示用文字列生成
-    
+
     Args:
         p1(dict): 比較（Before）
         p2(dict): 比較（After）
     """
-    
+
     diffs = []
     for k, v in p1.items():
         if k in p2:
@@ -406,10 +422,10 @@ def get_diff(p1: dict, p2: dict):
         else:
             # new
             diffs.append(f"{k}: {p1[k]} -> X (deleted)")
-    
+
     for k, v in p2.items():
         if k not in p1:
             # delete
             diffs.append(f"{k}: X -> {p2[k]} (added)")
-    
+
     return "\n".join(diffs)
