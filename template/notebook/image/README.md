@@ -1,9 +1,11 @@
-# Single-user notebook serverコンテナイメージ
+# ユーザ用コンテナイメージ
+
+MCJ-CloudHubでは、ログインしたユーザの環境はDockerコンテナとして起動します。  
+ここでは、そのコンテナイメージ作成用の資材についての情報を記載しています。  
 
 ## イメージ一覧  
 
-以下の各イメージが、本ディレクトリ内の同名のディレクトリに対応しています。
-
+以下の各イメージが、`template/notebook`ディレクトリ内の同名のディレクトリに対応しています。
 
 ### notebook-7.5.0（default）  
 
@@ -25,3 +27,4 @@
     - [LC_wrapper](https://github.com/NII-cloud-operation/Jupyter-LC_wrapper?tab=readme-ov-file)
     - [LC_nblineage](https://github.com/NII-cloud-operation/Jupyter-LC_nblineage)
     - [Jupyter-multi_outputs](https://github.com/NII-cloud-operation/Jupyter-multi_outputs)
+

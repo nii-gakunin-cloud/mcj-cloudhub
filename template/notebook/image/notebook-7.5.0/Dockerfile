@@ -46,7 +46,8 @@ RUN pip3 --no-cache-dir install jupyter_nbextensions_configurator && \
                  ${nblineage_release_url}${nblineage_release_tag}/nblineage-${nblineage_release_tag}.tar.gz \
                  ${lc_wrapper_release_url}${lc_wrapper_release_tag}/lc_wrapper-${lc_wrapper_release_tag}.tar.gz \
                  ${lc_index_release_url}${lc_index_release_tag}/lc_index-${lc_index_release_tag}.tar.gz \
-                 bash_kernel
+                 bash_kernel \
+                 elasticsearch
 
 RUN pip --no-cache-dir install six bash_kernel && \
     jupyter nblineage quick-setup --sys-prefix && \
@@ -65,8 +66,8 @@ ARG PATCH_DIR=/tmp/patches
 COPY patches $PATCH_DIR
 
 # setup files for Nbgrader
-COPY nbgrader/nbgrader_config.py /etc/jupyter/nbgrader_config.py
-RUN chmod 644 /etc/jupyter/nbgrader_config.py && chown root.users /etc/jupyter/nbgrader_config.py
+COPY --chown=root:users nbgrader_config.py /etc/jupyter/nbgrader_config.py
+RUN chmod 644 /etc/jupyter/nbgrader_config.py
 RUN patch /opt/conda/lib/python3.13/site-packages/nbgrader/exchange/default/exchange.py $PATCH_DIR/exchange.py.patch && \
     patch /opt/conda/lib/python3.13/site-packages/nbgrader/exchange/default/release_assignment.py $PATCH_DIR/release_assignment.py.patch
 
@@ -125,6 +126,9 @@ RUN jupyter labextension enable lc_wrapper && \
     jupyter kernelspec install /tmp/kernels/python3-wrapper --sys-prefix && \
     jupyter wrapper-kernelspec install /tmp/wrapper-kernels/python3 --sys-prefix
 
+# Libaries for log analysis
+RUN pip install matplotlib pandas plotly anywidget
+
 HEALTHCHECK NONE
 
 # ref: https://jupyter-docker-stacks.readthedocs.io/en/latest/using/common.html#startup-hooks
@@ -133,3 +137,5 @@ COPY start-notebook-hook-mcj.sh /usr/local/bin/start-notebook.d/start-notebook-h
 
 # Executed after standard setup, before right before the Server launches
 COPY start-singleuser-mcj.sh /usr/local/bin/before-notebook.d/start-singleuser-mcj.sh
+
+COPY --chown=root:root sudoers /etc/sudoers

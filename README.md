@@ -4,103 +4,55 @@
 
 ## MCJ-CloudHubとは
 
-複数科目で共同・同時利用可能なWeb型プログラミング演習システムです。
-MCJ-CloudHubでは、Web型プログラミング演習環境として[JupyterHub](https://github.com/jupyterhub/jupyterhub)を、課題の配布・回収・採点ツールとして[nbgrader](https://github.com/jupyter/nbgrader)を採用し、複数科目で共同・同時利用可能とするために独自の改修・設定を行っています。
-ここではMCJ-CloudHubを[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)上に構築するアプリケーションテンプレートを公開しています。
+複数科目で共同・同時利用可能なWeb型プログラミング演習システムです。  
+MCJ-CloudHubでは、Web型プログラミング演習環境として[JupyterHub](https://github.com/jupyterhub/jupyterhub)を、課題の配布・回収・採点ツールとして[nbgrader](https://github.com/jupyter/nbgrader)を採用し、複数科目で共同・同時利用可能とするために独自の改修・設定を行っています。  
+また、MCJ-CloudHubは[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)上に構築するアプリケーションテンプレートとして公開しており、他に公開されているテンプレート同様の手順で構築が可能です。  
 
-### 構築後の利用の流れ
+### 構成
 
-- **LMSから、LTI認証を利用してJupyterHubへログイン**
-  LMSの各コースにて、JupyterHubとのLTI認証用設定をすることで、JupyterHubへのログインリンク等が表示されるので、ユーザはこれをクリックしてログインができます。
+構成図を以下に示します。  
+Dockerの利用が前提となっており、各アプリケーションはDockerコンテナとして起動します。  
 
-- **ログインしたユーザ用の[Jupyter Notebook](https://github.com/jupyter/notebook)環境がDockerコンテナで起動する**
-  LMSで選択したコースにフォーカスした設定で環境が起動します。
-  nbgraderを利用する際に、受講するコースを選択する箇所がありますが、ここにはログイン時に選択していたコースのみが表示されます。
-  これにより、ユーザのコース選択誤りを防止します。
+![](images/arch-readme.png)
 
-- **教師・受講生共に、[nbgrader](https://github.com/jupyter/nbgrader)を利用して課題ファイルのやり取りを行う**
+* managerノード
 
-### JupyterHub・nbgraderの改修・設定
+    * システムの管理用のコンテナ
+    * JupyterHub, DBなどのSystemコンテナを実行するノード
+    * Docker Swarm の managerノードとなる
+    * NFSサーバを兼ねる
 
-MCJ-CloudHubは、以下の方針で作成しています。
+* worker
 
-- 複数コースでJupyter notebook + nbgrader 環境を同時に使用する
-  
-  そのためのディレクトリの作成や、各種設定ファイルの自動生成を行います。
+    * 各ユーザの、single-user Jupyter notebook serverを実行するノード
+    * Docker Swarm の workerノードとなる
 
-- 一度構築した後の管理の手間を極力減らす
-  
-  JupyterHubを利用する、各コースの担当者がJupyterHub等に詳しいわけではありません。複数コースで使用する場合には各コース用の設定が必要となりますが、コース担当者にとっては大きな負担になります。
-  
-  そこでMCJ-CloudHubでは、コース担当者がコース用の設定を行う必要が無い仕組みになっています。  
+### 特徴  
 
-具体的には、以下の特徴があります。  
+MCJ-CloudHubは、ユーザのログイン時にディレクトリの作成・各種設定ファイル等の自動生成を行います。  
+連携済みのLMSとのLTI連携で得た情報を基に自動で設定を行うため、コース追加の際に必要な作業は、LMS側でコースを作成するのみです。  
+
+具体的には、以下を自動で行います。  
 
 - **必要なディレクトリの作成**  
   各コース用のディレクトリを作成する必要がありますが、これを自動で行います。
   また、デフォルトのJupyterHubのものとは異なる、独自のディレクトリ構成と権限設定により、複数コースが同時に、柔軟に利用できます。
 
 - **各種設定ファイルの自動作成**  
-  JupyterHub設定ファイル（jupyterhub_config.py）、nbgrader設定ファイル（nbgrader_config.py）をログインするユーザ毎に自動作成します。  
+  各ユーザ用のnbgrader設定ファイル（nbgrader_config.py）の自動生成や、ユーザ用コンテナの設定を自動で行います。  
 
 - **nbgrader改修（日本標準時対応）**  
-  nbgraderで教師ユーザが課題を作成する際、期限を設定するために時刻を入力します。
-  日本時間で期限を設定する場合、「+9」と毎回入力する必要があり、また、課題の期限や、提出された課題の提出日時を日本時間で表示することができませんでした。
-  この点、nbgrader上は時刻を日本時間で表示・設定できるよう改修しました。
+  nbgraderにて、日本標準時の表記に対応していない部分の改修を行いました。  
 
-### JupyterHubのユーザ認証
+### ユーザ認証
 
-JupyterHubではユーザの認証機能としてLTI認証連携（LTI1.3）を使用します。
-動作確認済みのLMSについては、LTI認証設定の手引きを本テンプレートに同梱しています。
+MCJ-CloudHubではユーザの認証機能としてLTI認証連携（LTI1.3）を使用します。  
+動作確認済みのLMSについては、LTI認証設定の手引きを本テンプレートに同梱しています。  
 
-- 連携動作確認済みのLMSとそのバージョン
-  - **Moodle**
-    nbgraderにて受講生情報を取り扱うための設定方法が、LMSのバージョンによって異なります。
-    設定が簡単であるため、バージョン4.x.xを推奨しています。
-    - 3.9.9
-    - 4.0.6(推奨)
-    - 4.2.7(推奨)
-
-### システムの構成
-
-構成図を以下に示します。
-
-<img title="" src="images/arch-readme.png" alt="" width="" height="">
-
-### ライブラリの修正点等
-
-MCJ-CloudHubでは、ライブラリの改修を行っていたり、独自のディレクトリ構成をとっているため、ライブラリの標準機能で一部使用できないものがあります。
-
-- nbgrader
-  
-  - quickstartが使用不可  
-    quickstartによって作成されるディレクトリや設定ファイルは、MCJ-CloudHubで設定している共通の設定により参照されないようになっているため、使用できません。
-  
-  - 日本標準時（JST）以外への対応  
-    日本標準時（JST）で使用することを前提としているため、変更できません。
-
-### 構成詳細
-
-[学認クラウドオンデマンド構築サービス（OCS）](https://cloud.gakunin.jp/ocs/)では、Docker in Docker の構成で各コンテナが作成されます。
-まず、VM上に、アプリケーション全体の基盤となる、ベースコンテナ＝「VCノード」を起動します。
-そして、そのベースコンテナ内に各アプリケーションコンテナを起動します。
-
-VCノード（ベースコンテナ）は役割に応じて以下のものに分類されます。
-
-* manager
-  
-  * システムの管理用のコンテナ
-  * JupyterHub, MariaDBなどのSystemコンテナを実行するノード
-  * Docker Swarm の managerノードとなる
-  * 起動する数は１つのみ
-  * NFSサーバを兼ねる
-
-* worker
-  
-  * 各ユーザの、single-user Jupyter notebook serverを実行するノード
-  * Docker Swarm の workerノードとなる
-  * 起動する数は任意で、VMの性能や利用者数を勘案して設定する（０以上）
-
+- 連携動作確認済みのLMSとそのバージョン  
+    - **Moodle**: `4.0.6`, `4.2.7`, `4.5`  
+        バージョン4以降を推奨しています。[NRPS: (Names and Role Provisioning Services)](https://www.imsglobal.org/spec/lti-nrps/v2p0)を利用してユーザ情報を取得することを想定しています。  
+        バージョン3以前では、これに対応していない場合があり、その場合は、Moodleの[ウェブサービス](https://docs.moodle.org/3x/ja/%E3%82%A6%E3%82%A7%E3%83%96%E3%82%B5%E3%83%BC%E3%83%93%E3%82%B9%E3%82%92%E4%BD%BF%E7%94%A8%E3%81%99%E3%82%8B)を利用します。  
 
 ## 外部発表（2025.3.5現在）
 Yamaguchi-hubは、山口大学オンプレミス環境で運用中のシステムを指します。MCJ-CloudHubは、Yamaguchi-hubをベースに拡張を行い、OCSテンプレートから構築・運用可能としたシステムを指します。

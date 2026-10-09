@@ -35,7 +35,7 @@ MCJ-CloudHub is designed with the following goals:
     Per-course directories are created with a custom layout and permission settings, enabling safe concurrent access.
 
   - **Auto-generation of config files**  
-    Both jupyterhub\_config.py and nbgrader\_config.py are automatically generated per user at login.
+    Automatically generate nbgrader\_config.py and setup container per user at login.
 
   - **JST support for nbgrader**  
     The system customizes nbgrader to allow instructors to set and view assignment deadlines in Japan Standard Time (JST), eliminating the need to manually specify time zone offsets.
@@ -46,13 +46,16 @@ MCJ-CloudHub uses **LTI 1.3** for user authentication with supported LMS platfor
 
   - **Verified LMS Platforms and Recommended Versions**:
     
-      - **Moodle** (version 4.x.x recommended due to simpler setup)
-        
-          - 3.9.9
-        
-          - 4.0.6 (recommended)
-        
-          - 4.2.7 (recommended)
+      - **Moodle**
+
+          - 4.0.6
+
+          - 4.2.7
+
+          - 4.5
+
+        Version 4 or later is recommended because the platform assumes the use of NRPS (Names and Role Provisioning Services) to retrieve user information.
+        Earlier Moodle versions may require Moodle web services instead.
 
 **System Architecture**
 

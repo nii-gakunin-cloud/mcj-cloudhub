@@ -1,0 +1,189 @@
+services:
+  db:
+    image: mariadb:lts
+    environment:
+      # Use jupyterhub-network user for jupyterhub
+      - MARIADB_USER=${DB_USER_JUPYTERHUB?Variable not set}
+      - MARIADB_PASSWORD=${DB_PASSWORD_JUPYTERHUB?Variable not set}
+      - MARIADB_CHARACTER_SET=utf8mb4
+      - MARIADB_COLLATE=utf8mb4_unicode_ci
+      - MARIADB_ROOT_PASSWORD=${DB_ROOT_PASSWORD?Variable not set}
+      - MARIADB_DATABASE_MOODLE=${DB_DATABASE_MOODLE}
+      - MARIADB_USER_MOODLE=${DB_USER_MOODLE?Variable not set}
+      - MARIADB_PASSWORD_MOODLE=${DB_PASSWORD_MOODLE?Variable not set}
+      - MARIADB_DATABASE_JUPYTERHUB=${DB_DATABASE_JUPYTERHUB:-jupyterhub}
+    volumes:
+      - ./db/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d:ro
+      - 'db_data:/var/lib/mysql:Z'
+    networks:
+      - jupyterhub-network
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+  jupyterhub:
+    build:
+      context: ./jupyterhub
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - ${DATA_DIR_ROOT_HOST:-${PWD}/mcj-data}:/jupyterdata # Must be created in advance
+      - ./jupyterhub/conf.d:/etc/jupyterhub/conf.d # User conf
+      - ./jupyterhub/jupyterhub_config.py:/etc/jupyterhub/jupyterhub_config.py:ro # For develop
+      # - ./test/custom.py:/etc/jupyterhub/custom.py:ro # For test
+      # - ./test/conf.d:/etc/jupyterhub/conf.d:ro # For test
+    networks:
+      - jupyterhub-network
+    environment:
+      DOCKER_NETWORK_NAME: jupyterhub-network
+      JUPYTERHUB_FQDN: ${JUPYTERHUB_FQDN:-localhost}
+      DB_USER: ${DB_USER_JUPYTERHUB?Variable not set}
+      DB_PASSWORD: ${DB_PASSWORD_JUPYTERHUB?Variable not set}
+      DB_NAME: ${DB_DATABASE_JUPYTERHUB?Variable not set}
+      DB_HOST: db:${DB_PORT:-3306}
+      LDAP_ADMIN_USERNAME: ${LDAP_ADMIN_USERNAME?Variable not set}
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD?Variable not set}
+      EMAIL_DOMAIN: ${EMAIL_DOMAIN?Variable not set}
+      # JUPYTERHUB_ADMIN_USERS: "{{jupyterhub_admin_users}}"
+      CONFIGPROXY_AUTH_TOKEN: ${CONFIGPROXY_AUTH_TOKEN?Variable not set} # secrets
+      TEACHER_GID: ${TEACHER_GID:-600}
+      STUDENT_GID: ${STUDENT_GID:-601}
+      NB_NODE_ROLE: manager # Ignored if this is not swarm
+      # LTI_METHOD: {{get_course_member_method}}
+      # LMS_API_TOKEN: {{lms_api_token}}
+      # TODO changethis
+      TEMPLATE_DIR_HOST: ${PWD}
+      MCJ_DATA_HOST: ${MCJ_DATA_HOST:-${PWD}/mcj-data}
+      NOTEBOOK_IMAGE: ${NOTEBOOK_IMAGE:-mcj-cloudhub-nb:notebook-7.5.0}
+      # TODO: Or local account
+      LMS_PLATFORM_ID: ${LMS_PLATFORM_ID:-http://localhost}
+      LMS_CLIENT_ID: ${LMS_CLIENT_ID:-issuedbylms}
+      LTI_USERNAME_KEY: "sub"
+      DEFAULT_URL: "lab"
+      ENABLE_CUSTOM_SETUP: "yes"
+      DATA_ROOT: ${DATA_ROOT:-/jupyterdata}
+      LMS_URL: ${LMS_URL}
+      LMS_SUBDIR: ${LMS_SUBDIR}
+      JUPYTERHUB_SPAWNER_CLASS: ${JUPYTERHUB_SPAWNER_CLASS:-dockerspawner.DockerSpawner}
+      SECRET_DIR: ${DATA_ROOT:-/jupyterdata}/secrets
+    command: ["jupyterhub", "-f", "/etc/jupyterhub/jupyterhub_config.py"]
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/hub/health"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 10
+  jupyterhub-proxy:
+    image: jupyterhub/configurable-http-proxy
+    networks:
+      - jupyterhub-network
+    environment:
+      CONFIGPROXY_AUTH_TOKEN: ${CONFIGPROXY_AUTH_TOKEN?Variable not set}
+      JUPYTERHUB_FQDN: ${JUPYTERHUB_FQDN:-localhost}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  ldap:
+    image: bitnamilegacy/openldap:latest
+    environment:
+      - LDAP_SKIP_DEFAULT_TREE=yes
+      #- LDAP_ALLOW_ANON_BINDING=no
+      - LDAP_ROOT=dc=jupyterhub,dc=server,dc=sample,dc=jp
+      - LDAP_ADMIN_USERNAME=${LDAP_ADMIN_USERNAME?Variable not set}
+      - LDAP_ADMIN_PASSWORD=${LDAP_ADMIN_PASSWORD?Variable not set}
+    networks:
+      - jupyterhub-network
+    volumes:
+      - ./ldap/ldifs:/ldifs:ro
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+  moodle:
+    profiles:
+      - moodle
+    build:
+      context: moodle
+      dockerfile: Dockerfile
+      args:
+        - EXTRA_LOCALES=ja_JP.UTF-8 UTF-8
+    environment:
+      - MOODLE_SITE_NAME="Quickstart for dev"
+      - MOODLE_DATABASE_TYPE=mariadb
+      - MOODLE_DATABASE_HOST=db
+      - MOODLE_DATABASE_PORT_NUMBER=${DB_PORT:-3306}
+      - MOODLE_DATABASE_USER=${DB_USER_MOODLE?Variable not set}
+      - MOODLE_DATABASE_PASSWORD=${DB_PASSWORD_MOODLE?Variable not set}
+      - MOODLE_DATABASE_NAME=${DB_DATABASE_MOODLE:-moodle}
+      - MOODLE_HOST=${MOODLE_HOST:-localhost/moodle}
+      - MOODLE_REVERSEPROXY=true
+      - MOODLE_SSLPROXY=true
+      - MOODLE_USERNAME=${MOODLE_USERNAME:-admin}
+      - MOODLE_EMAIL=${MOODLE_EMAIL:-admin@example.com}
+      - MOODLE_PASSWORD=${MOODLE_PASSWORD?Variable not set}
+      - MOODLE_LANG=ja
+      # - BITNAMI_DEBUG=true # 詳細ログ出力
+    volumes:
+      - 'mcj_dev_moodle_data:/bitnami/moodle'
+      - 'mcj_dev_moodledata_data:/bitnami/moodledata'
+    depends_on:
+      db:
+        condition: service_healthy
+        restart: true
+    networks:
+      - jupyterhub-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login/index.php"]
+      start_period: 10s
+      interval: 20s
+      timeout: 5s
+      retries: 10
+    restart: always
+  proxy:
+    image: nginx
+    ports:
+      - 443:443
+    volumes:
+      - ./nginx/templates/${NGINX_CONF_TEMPLATE:-default}:/etc/nginx/templates:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+    networks:
+      - jupyterhub-network
+    environment:
+      JUPYTERHUB_FQDN: ${JUPYTERHUB_FQDN:-localhost}
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+    depends_on:
+      jupyterhub:
+        condition: service_healthy
+      moodle:
+        condition: service_healthy
+volumes:
+  db_data:
+    driver: local
+  mcj_dev_moodle_data:
+    driver: local
+  mcj_dev_moodledata_data:
+    driver: local
+  jupyterhub_share:
+    driver: local
+networks:
+  jupyterhub-network:
+    name: jupyterhub-network
+    driver: bridge

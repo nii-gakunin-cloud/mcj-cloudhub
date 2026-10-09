@@ -15,15 +15,26 @@ if [ "$COURSEROLE" == "Instructor" ]; then
     jupyter labextension enable @jupyter/nbgrader:formgrader
     jupyter labextension enable @jupyter/nbgrader:create-assignment
 fi
-if [ ! -z "$ENABLE_CUSTOM_SETUP" ]; then
+
+custom_setup_value_lower=$(echo "$ENABLE_CUSTOM_SETUP" | tr '[:upper:]' '[:lower:]')
+if [ ! -z "$custom_setup_value_lower" ] && [ "$custom_setup_value_lower" != "false" ] && [ "$custom_setup_value_lower" != "no" ]; then
+    shared_bin='/opt/local/bin'
+    shared_sbin='/opt/local/sbin'
+    custom_setup_log="custom_installer.log"
     if [ "$COURSEROLE" == "Instructor" ]; then
-        exec_sh "/opt/local/sbin/*.sh" "custom_installer.log"
+        exec_sh "$shared_sbin/*.sh" $custom_setup_log
         option_dir=/home/$NB_USER/local
         if [ ! -L $option_dir ]; then
           ln -s /opt/local $option_dir
         fi
+        if [ -d "$shared_bin" ]; then
+          export PATH="$PATH:$shared_bin"
+        fi
     else
-        exec_sh "/opt/local/sbin/*.sh"
+        exec_sh "$shared_sbin/*.sh"
+        if [ -d "$shared_bin" ]; then
+          export PATH="$PATH:$shared_bin"
+        fi
     fi
 fi
 

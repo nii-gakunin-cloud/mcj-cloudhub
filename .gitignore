@@ -10,3 +10,9 @@ inventory.yml
 notebooks.svg
 work*
 deploy_vm_for_vcnode.ipynb
+mcj-data
+.env
+*.pem
+*Zone.Identifier
+jupyterhub/conf.d
+docmerged
